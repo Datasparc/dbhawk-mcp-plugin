@@ -1,0 +1,6 @@
+# Build tooling only — the committed dist/ bundle is what ships to plugin users.
+node_modules/
+.env
+
+# Do NOT ignore dbhawk/mcp-server/dist/ — the self-contained bundle must be committed
+# so `/plugin install` works after a bare git clone (no npm install step).

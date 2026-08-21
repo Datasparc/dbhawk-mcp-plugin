@@ -1,0 +1,24 @@
+{
+  "name": "dbhawk-mcp-server",
+  "version": "0.1.1",
+  "description": "MCP server bridging an AI assistant to the DBHawk /api/v2/mcp REST API (read-only datasource exploration + HawkAI).",
+  "type": "module",
+  "private": true,
+  "bin": {
+    "dbhawk-mcp-server": "dist/dbhawk-mcp.mjs"
+  },
+  "scripts": {
+    "build": "esbuild index.js --bundle --platform=node --format=esm --outfile=dist/dbhawk-mcp.mjs",
+    "start": "node index.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "esbuild": "^0.24.0"
+  }
+}

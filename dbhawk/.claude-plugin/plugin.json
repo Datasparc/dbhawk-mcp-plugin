@@ -1,0 +1,9 @@
+{
+  "name": "dbhawk",
+  "version": "0.1.1",
+  "description": "Bridges an AI assistant to DBHawk: list datasources, browse schema, run read-only queries, and use HawkAI text-to-SQL over the /api/v2/mcp REST API.",
+  "author": {
+    "name": "Datasparc"
+  },
+  "keywords": ["dbhawk", "mcp", "sql", "database", "hawkai"]
+}

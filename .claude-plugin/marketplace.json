@@ -1,0 +1,17 @@
+{
+  "name": "dbhawk-marketplace",
+  "owner": {
+    "name": "Datasparc"
+  },
+  "metadata": {
+    "description": "DBHawk demo marketplace: MCP access to DBHawk datasources for AI assistants."
+  },
+  "plugins": [
+    {
+      "name": "dbhawk",
+      "source": "./dbhawk",
+      "description": "Read-only DBHawk datasource exploration + HawkAI over the /api/v2/mcp API.",
+      "version": "0.1.1"
+    }
+  ]
+}
