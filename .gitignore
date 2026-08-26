@@ -2,5 +2,8 @@
 node_modules/
 .env
 
+# Packed desktop-extension artifact — distributed via GitHub Releases, not the git tree.
+*.mcpb
+
 # Do NOT ignore dbhawk/mcp-server/dist/ — the self-contained bundle must be committed
 # so `/plugin install` works after a bare git clone (no npm install step).

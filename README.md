@@ -50,9 +50,24 @@ Prefer to try it without a git host? Load the local folder for one session:
 claude --plugin-dir ./dbhawk-mcp-plugin/dbhawk
 ```
 
-### Claude Desktop (local connector)
+### Claude Desktop (extension, `.mcpb`) — recommended
 
-Desktop doesn't understand plugins or `${CLAUDE_PLUGIN_ROOT}` — point it at the bundle with an
+Claude Desktop installs this as a **Desktop Extension** with a proper GUI settings form (no JSON
+editing). It's the same MCP server, packaged as an `.mcpb` bundle.
+
+1. Download `dbhawk-<version>.mcpb` from the [Releases page](https://github.com/datasparc/dbhawk-mcp-plugin/releases).
+2. In Claude Desktop: **Settings → Extensions → Advanced settings → Install** and pick the file
+   (or just drag the `.mcpb` onto the Extensions window).
+3. Fill in the form — **DBHawk Base URL**, **API Token** (masked; stored in your OS keychain),
+   **Default Datasource** (optional) — and save.
+
+Claude Desktop does not auto-update file-installed extensions: to upgrade, download the newer
+`.mcpb` and install it again. This is independent of the Claude Code plugin — you don't need the
+marketplace plugin installed.
+
+### Claude Desktop (manual config, advanced)
+
+Prefer to wire it by hand instead of the `.mcpb`? Point Desktop at the bundle with an
 **absolute path**. Edit `claude_desktop_config.json`
 (Windows: `%APPDATA%\Claude\claude_desktop_config.json`,
 macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`):
@@ -154,6 +169,25 @@ git add dist/dbhawk-mcp.mjs && git commit -m "rebuild bundle"
 ```
 
 `dist/dbhawk-mcp.mjs` is committed on purpose — it is the artifact users run. `node_modules/` is not.
+
+### Build & release the desktop extension (`.mcpb`)
+
+The `mcpb/` folder is the extension source: [`mcpb/manifest.json`](mcpb/manifest.json) (declares the
+`user_config` fields shown in Desktop's settings form) plus `mcpb/server/dbhawk-mcp.mjs` (a copy of the
+same `dist/` bundle). After rebuilding the bundle, refresh the copy, then pack and release:
+
+```bash
+cp dbhawk/mcp-server/dist/dbhawk-mcp.mjs mcpb/server/dbhawk-mcp.mjs   # keep the copy in sync
+npx @anthropic-ai/mcpb validate mcpb/manifest.json                   # optional sanity check
+npx @anthropic-ai/mcpb pack mcpb dbhawk-<version>.mcpb                # produces the .mcpb
+
+gh release create v<version> dbhawk-<version>.mcpb \
+  --title "DBHawk <version>" --notes "DBHawk MCP desktop extension"
+```
+
+Bump `version` in `mcpb/manifest.json` for every release (Desktop keys upgrades off it). The `.mcpb`
+is **git-ignored** — it ships as a Release asset, not in the tree. Keep `mcpb/manifest.json`'s version
+in step with `dbhawk/.claude-plugin/plugin.json` so the plugin and the extension stay aligned.
 
 ---
 
