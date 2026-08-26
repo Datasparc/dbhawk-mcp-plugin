@@ -79,17 +79,34 @@ Restart Claude Desktop fully (including the tray icon).
 
 ## Configure
 
-The server reads three environment variables (see [`.env.example`](.env.example)):
+The server needs three values (the token owner needs `ACCESS_TO_DATA`):
 
-| Variable | Required | Meaning |
+| Setting | Required | Meaning |
 |---|---|---|
-| `DBHAWK_BASE_URL` | yes | Base URL of DBHawk, e.g. `https://demo.dbhawk.example.com` (no trailing `/api`) |
-| `DBHAWK_TOKEN` | yes | MCP-scoped personal token (`dbh_…`): DBHawk → User Profile → API Token. Exchanged for a JWT at runtime — paste the personal token as-is, not a JWT |
-| `DBHAWK_DEFAULT_DATASOURCE` | no | Datasource used when a tool call omits `datasource` |
+| Base URL (`DBHAWK_BASE_URL`) | yes | Base URL of DBHawk, e.g. `https://demo.dbhawk.example.com` (no trailing `/api`) |
+| API Token (`DBHAWK_TOKEN`) | yes | MCP-scoped personal token (`dbh_…`): DBHawk → User Profile → API Token. Exchanged for a JWT at runtime — paste the personal token as-is, not a JWT |
+| Default Datasource (`DBHAWK_DEFAULT_DATASOURCE`) | no | Datasource used when a tool call omits `datasource` |
 
-In Claude Code the plugin's `.mcp.json` reads these from your environment
-(`${DBHAWK_TOKEN}` etc.), so **no secret is committed**. Export them before launching, or hardcode
-them into `dbhawk/.mcp.json` for a throwaway demo. The token owner needs `ACCESS_TO_DATA`.
+### Claude Code — guided setup dialog (recommended)
+
+The plugin declares these as `userConfig` fields in `dbhawk/.claude-plugin/plugin.json`, so Claude
+Code prompts for them when you enable the plugin — the token field is `sensitive`, so it's masked
+on entry and stored in secure storage (OS keychain / `~/.claude/.credentials.json`), **never** in
+`settings.json` or git. `dbhawk/.mcp.json` wires them in via `${user_config.dbhawk_token}` etc.
+
+To re-enter or change them later, re-enable the plugin, or set them non-interactively:
+
+```bash
+claude plugin install dbhawk@dbhawk-marketplace \
+  --config dbhawk_base_url=https://demo.dbhawk.example.com \
+  --config dbhawk_token=dbh_... \
+  --config dbhawk_default_datasource=
+```
+
+### Claude Desktop — environment variables
+
+Desktop doesn't understand plugins or `userConfig` — pass the three values as `env` in the
+`claude_desktop_config.json` block shown above.
 
 ---
 

@@ -4,9 +4,9 @@
       "command": "node",
       "args": ["${CLAUDE_PLUGIN_ROOT}/mcp-server/dist/dbhawk-mcp.mjs"],
       "env": {
-        "DBHAWK_BASE_URL": "${DBHAWK_BASE_URL:-https://your-dbhawk.example.com}",
-        "DBHAWK_TOKEN": "${DBHAWK_TOKEN}",
-        "DBHAWK_DEFAULT_DATASOURCE": "${DBHAWK_DEFAULT_DATASOURCE:-}"
+        "DBHAWK_BASE_URL": "${user_config.dbhawk_base_url}",
+        "DBHAWK_TOKEN": "${user_config.dbhawk_token}",
+        "DBHAWK_DEFAULT_DATASOURCE": "${user_config.dbhawk_default_datasource:-}"
       }
     }
   }

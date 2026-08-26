@@ -1,10 +1,31 @@
 {
   "name": "dbhawk",
   "displayName": "DBHawk",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Bridges an AI assistant to DBHawk: list datasources, browse schema, run read-only queries, and use HawkAI text-to-SQL over the /api/v2/mcp REST API.",
   "author": {
     "name": "Datasparc"
   },
-  "keywords": ["dbhawk", "mcp", "sql", "database", "hawkai"]
+  "keywords": ["dbhawk", "mcp", "sql", "database", "hawkai"],
+  "userConfig": {
+    "dbhawk_base_url": {
+      "type": "string",
+      "title": "DBHawk Base URL",
+      "description": "Base URL of your DBHawk stand, without a trailing /api (e.g. https://demo.dbhawk.example.com).",
+      "required": true
+    },
+    "dbhawk_token": {
+      "type": "string",
+      "title": "DBHawk API Token",
+      "description": "MCP-scoped personal token (dbh_<id>.<secret>): DBHawk -> User Profile -> API Token. Exchanged for a JWT at runtime; paste the personal token as-is.",
+      "sensitive": true,
+      "required": true
+    },
+    "dbhawk_default_datasource": {
+      "type": "string",
+      "title": "Default Datasource (optional)",
+      "description": "Datasource used when a tool call omits \"datasource\". Leave blank to require it per call.",
+      "required": false
+    }
+  }
 }
