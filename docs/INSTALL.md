@@ -32,7 +32,7 @@ through a graphical form — no manual config editing.
 ## Step 2. Download the extension file
 
 1. Open the releases page:
-   **https://github.com/datasparc/dbhawk-mcp-plugin/releases**
+   <a href="https://github.com/datasparc/dbhawk-mcp-plugin/releases" target="_blank" rel="noopener noreferrer"><strong>https://github.com/datasparc/dbhawk-mcp-plugin/releases</strong></a>
 2. In the latest release, under **Assets**, download `dbhawk-<version>.mcpb`
    (for example, `dbhawk-0.2.0.mcpb`).
 
@@ -67,6 +67,8 @@ After installation, Claude Desktop shows the DBHawk extension's settings form wi
 | **Default Datasource** *(optional)* | A default datasource; you can leave it blank |
 
 Fill in the fields and **save**. Make sure the extension is **enabled** (the toggle is on).
+
+![DBHawk extension configuration form](images/05-config-form.png)
 
 ---
 

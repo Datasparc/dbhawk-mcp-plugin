@@ -7,6 +7,7 @@
   "author": {
     "name": "Datasparc"
   },
+  "icon": "icon.png",
   "keywords": ["dbhawk", "mcp", "sql", "database", "hawkai"],
   "server": {
     "type": "node",
