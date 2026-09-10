@@ -131,6 +131,7 @@ Desktop doesn't understand plugins or `userConfig` — pass the three values as 
 |---|---|
 | `list_datasources` | `GET /datasources` |
 | `get_datasource` | `GET /datasources/{ds}` |
+| `list_catalogs` | `GET /datasources/{ds}/catalogs` (MSSQL / Snowflake; empty for DBs with no catalog level) |
 | `list_schemas` | `GET /datasources/{ds}/schemas` |
 | `list_objects` | `GET /datasources/{ds}/schemas/{schema}/objects` |
 | `list_columns` | `GET /datasources/{ds}/schemas/{schema}/objects/{object}/columns` |

@@ -1,6 +1,6 @@
 {
   "name": "dbhawk-mcp-server",
-  "version": "0.1.1",
+  "version": "0.3.0",
   "description": "MCP server bridging an AI assistant to the DBHawk /api/v2/mcp REST API (read-only datasource exploration + HawkAI).",
   "type": "module",
   "private": true,

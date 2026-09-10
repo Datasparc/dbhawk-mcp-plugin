@@ -21252,7 +21252,7 @@ function guard(handler) {
     }
   };
 }
-var server = new McpServer({ name: "dbhawk", version: "0.1.1" });
+var server = new McpServer({ name: "dbhawk", version: "0.3.0" });
 server.tool(
   "list_datasources",
   "List the datasources assigned to the current user. Returns name, dbType, readOnly, requiresDbLogin, aiEnabled.",
@@ -21264,6 +21264,16 @@ server.tool(
   "Get capabilities of one datasource (dbType, readOnly, whether it needs a DB login, whether HawkAI is enabled).",
   { datasource: external_exports.string().describe("Datasource name, e.g. 'Oracle-OVH'") },
   guard(async ({ datasource }) => ok(await api("GET", `/datasources/${seg(resolveDatasource(datasource))}`)))
+);
+server.tool(
+  "list_catalogs",
+  "List the catalogs (databases) of a datasource, for DB types that have a catalog level above the schema (MSSQL, Snowflake). Returns an empty list for databases with no catalog concept (Oracle, MySQL, MongoDB) - for those, skip the catalog argument on list_schemas/list_objects/list_columns.",
+  {
+    datasource: external_exports.string().optional().describe("Datasource name; defaults to DBHAWK_DEFAULT_DATASOURCE")
+  },
+  guard(
+    async ({ datasource }) => ok(await api("GET", `/datasources/${seg(resolveDatasource(datasource))}/catalogs`))
+  )
 );
 server.tool(
   "list_schemas",
