@@ -1,0 +1,43 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "com.datasparc/dbhawk",
+  "description": "Secure access to DBHawk datasources: browse schemas, run governed queries, HawkAI text-to-SQL.",
+  "version": "0.3.0",
+  "repository": {
+    "url": "https://github.com/Datasparc/dbhawk-mcp-plugin",
+    "source": "github"
+  },
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "@dbhawk/mcp",
+      "version": "0.3.0",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "DBHAWK_BASE_URL",
+          "description": "DBHawk base URL, e.g. https://dbhawk.example.com (no trailing /api)",
+          "isRequired": true,
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "name": "DBHAWK_TOKEN",
+          "description": "MCP-scoped personal token (dbh_...) from DBHawk User Profile > API Token",
+          "isRequired": true,
+          "format": "string",
+          "isSecret": true
+        },
+        {
+          "name": "DBHAWK_DEFAULT_DATASOURCE",
+          "description": "Datasource used when a request doesn't name one",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        }
+      ]
+    }
+  ]
+}
