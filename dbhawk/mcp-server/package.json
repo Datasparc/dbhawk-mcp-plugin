@@ -1,24 +1,26 @@
 {
-  "name": "dbhawk-mcp-server",
+  "name": "@dbhawk/mcp",
   "version": "0.3.0",
   "description": "MCP server bridging an AI assistant to the DBHawk /api/v2/mcp REST API (read-only datasource exploration + HawkAI).",
+  "mcpName": "com.datasparc/dbhawk",
   "type": "module",
-  "private": true,
-  "bin": {
-    "dbhawk-mcp-server": "dist/dbhawk-mcp.mjs"
+  "bin": { "dbhawk-mcp": "dist/dbhawk-mcp.mjs" },
+  "files": ["dist"],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Datasparc/dbhawk-mcp-plugin.git",
+    "directory": "dbhawk/mcp-server"
   },
+  "homepage": "https://github.com/Datasparc/dbhawk-mcp-plugin#readme",
+  "keywords": ["mcp", "dbhawk", "database", "sql", "model-context-protocol"],
   "scripts": {
     "build": "esbuild index.js --bundle --platform=node --format=esm --outfile=dist/dbhawk-mcp.mjs",
     "start": "node index.js"
   },
-  "engines": {
-    "node": ">=18"
-  },
-  "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.12.0",
-    "zod": "^3.23.8"
-  },
+  "engines": { "node": ">=18" },
   "devDependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.0",
+    "zod": "^3.23.8",
     "esbuild": "^0.24.0"
   }
 }
