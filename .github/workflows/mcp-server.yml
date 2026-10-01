@@ -1,0 +1,101 @@
+name: MCP server
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: dbhawk/mcp-server
+
+jobs:
+  test:
+    name: Tests (Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # the plugin and the .mcpb declare node >= 18
+        node: [18, 20, 22]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+          cache-dependency-path: dbhawk/mcp-server/package-lock.json
+
+      - run: npm ci
+
+      # builds dist/dbhawk-mcp.mjs, then runs the bundle over stdio against a fake DBHawk (test/*.test.js)
+      - run: npm test
+
+  bundle:
+    name: Bundle, copies and manifests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: dbhawk/mcp-server/package-lock.json
+
+      - run: npm ci
+
+      # dist/ is committed - it is what `/plugin install` runs - so it must be built from the committed index.js
+      - name: Committed bundle is up to date
+        run: |
+          npm run build
+          git diff --exit-code -- dist/ || {
+            echo "::error::dbhawk/mcp-server/dist/dbhawk-mcp.mjs is stale. Run 'npm run build' in dbhawk/mcp-server and commit the result."
+            exit 1
+          }
+
+      - name: Desktop extension copy matches the bundle
+        working-directory: .
+        run: |
+          cmp dbhawk/mcp-server/dist/dbhawk-mcp.mjs mcpb/server/dbhawk-mcp.mjs || {
+            echo "::error::mcpb/server/dbhawk-mcp.mjs differs from the bundle. Run: cp dbhawk/mcp-server/dist/dbhawk-mcp.mjs mcpb/server/dbhawk-mcp.mjs"
+            exit 1
+          }
+
+      - name: Versions agree across manifests and server.json
+        working-directory: .
+        run: |
+          node -e '
+            const fs = require("fs");
+            const read = (f) => JSON.parse(fs.readFileSync(f, "utf8"));
+            const versions = {
+              "dbhawk/mcp-server/package.json": read("dbhawk/mcp-server/package.json").version,
+              "dbhawk/.claude-plugin/plugin.json": read("dbhawk/.claude-plugin/plugin.json").version,
+              "mcpb/manifest.json": read("mcpb/manifest.json").version,
+              ".claude-plugin/marketplace.json": read(".claude-plugin/marketplace.json").plugins[0].version,
+              // MCP registry entry and the npm package it points at
+              "server.json": read("server.json").version,
+              "server.json packages[0]": read("server.json").packages[0].version,
+            };
+            console.table(versions);
+            if (new Set(Object.values(versions)).size !== 1) {
+              console.log("::error::Plugin versions differ - bump them together.");
+              process.exit(1);
+            }
+            // the MCP server reports its own version during initialize
+            const src = fs.readFileSync("dbhawk/mcp-server/index.js", "utf8");
+            const m = src.match(/new McpServer\(\{ name: "dbhawk", version: "([^"]+)" \}\)/);
+            if (!m || m[1] !== versions["mcpb/manifest.json"]) {
+              console.log("::error::index.js McpServer version (" + (m && m[1]) + ") differs from the manifests.");
+              process.exit(1);
+            }
+          '
+
+      - name: Validate the desktop extension manifest
+        working-directory: .
+        run: npx --yes @anthropic-ai/mcpb validate mcpb/manifest.json

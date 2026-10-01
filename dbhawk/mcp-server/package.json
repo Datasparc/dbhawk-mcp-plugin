@@ -1,7 +1,7 @@
 {
   "name": "@dbhawk/mcp",
-  "version": "0.3.0",
-  "description": "MCP server bridging an AI assistant to the DBHawk /api/v2/mcp REST API (read-only datasource exploration + HawkAI).",
+  "version": "0.4.0",
+  "description": "MCP server bridging an AI assistant to the DBHawk /api/v2/mcp REST API (datasource exploration, tier-gated SQL execution + HawkAI).",
   "mcpName": "com.datasparc/dbhawk",
   "type": "module",
   "bin": { "dbhawk-mcp": "dist/dbhawk-mcp.mjs" },
@@ -15,7 +15,9 @@
   "keywords": ["mcp", "dbhawk", "database", "sql", "model-context-protocol"],
   "scripts": {
     "build": "esbuild index.js --bundle --platform=node --format=esm --outfile=dist/dbhawk-mcp.mjs",
-    "start": "node index.js"
+    "start": "node index.js",
+    "test": "npm run build && node --test",
+    "test:only": "node --test"
   },
   "engines": { "node": ">=18" },
   "devDependencies": {

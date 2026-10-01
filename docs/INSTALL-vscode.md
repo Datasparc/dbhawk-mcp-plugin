@@ -139,7 +139,9 @@ then **MCP: List Servers → Restart** the `dbhawk` server (or reload the window
 | **Missing configuration** on startup | `DBHAWK_BASE_URL` or `DBHAWK_TOKEN` is empty — check `env` / the token prompt. |
 | **token exchange failed: 401/403** | The token is wrong, revoked, or expired; or the user isn't in the MCP access group. For SSO/SAML users, sign in to DBHawk once via your IdP, then the token works again. Reissue it if needed. |
 | **DBHawk API 401/403** (after exchange) | Wrong scope, or the user lacks `ACCESS_TO_DATA`. |
-| **Only read-only statements…** | A write/DDL statement was attempted — this is expected; MCP is read-only. |
+| **… does not allow** (MCP tier) | The statement type is not in the user's MCP tier (the default tier is read-only). An admin can assign a higher tier to the user group (Admin → MCP Management → MCP Tiers). |
+| **Use the execute_statement tool instead** | A write was sent through the read-only `run_query` tool; the assistant should retry with `execute_statement`. |
+| **`confirmationRequired: true`** | Not an error: the tier asks for confirmation. Approve the statement, the assistant then repeats it with `confirm: true`. |
 | **404 on the first tool call** | A trailing slash or extra path on `DBHAWK_BASE_URL`. Use the bare origin + context path, e.g. `https://qa.dbhawk.com/dbhawk` (no trailing `/`). |
 
 ---

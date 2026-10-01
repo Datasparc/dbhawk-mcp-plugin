@@ -1,8 +1,8 @@
 # @dbhawk/mcp
 
-MCP server for [DBHawk](https://www.datasparc.com). It gives an AI assistant (Claude, VS Code, Cursor, or any MCP client) **read-only** access to the databases you already use in DBHawk: list your datasources, browse schemas, tables and columns, run read-only queries, and use HawkAI text-to-SQL.
+MCP server for [DBHawk](https://www.datasparc.com). It gives an AI assistant (Claude, VS Code, Cursor, or any MCP client) access to the databases you already use in DBHawk: list your datasources, browse schemas, tables and columns, run queries, and use HawkAI text-to-SQL.
 
-All of DBHawk's access control and column masking apply. DBHawk rejects any statement that modifies data or schema, whatever your role.
+All of DBHawk's access control and column masking apply. What the assistant may do is set by your DBHawk administrator through the **MCP tier** of your user groups: the default tier is read-only, higher tiers can allow data or schema changes. A change always goes through the separate `execute_statement` tool, which MCP clients confirm with you before running it, and DBHawk can additionally hold it until you approve it.
 
 ## Requirements
 
@@ -60,7 +60,9 @@ Claude Desktop users can also install the one-click extension from the [releases
 | `list_schemas` | Schemas of a datasource |
 | `list_objects` | Tables, views and other objects in a schema |
 | `list_columns` | Columns of a table or view |
-| `run_query` | Run a read-only query (row-capped) |
+| `get_permissions` | Your MCP tier: allowed operations, row cap, what needs confirmation |
+| `run_query` | Run a read-only query (row-capped); changes are always refused here |
+| `execute_statement` | Run a data or schema change, if your MCP tier allows it |
 | `text_to_sql` | HawkAI: turn a question into SQL |
 | `optimize_sql` | HawkAI: suggestions to speed up a query |
 | `format_sql` | Pretty-print a SQL statement |

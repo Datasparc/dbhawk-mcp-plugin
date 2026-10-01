@@ -21252,50 +21252,79 @@ function guard(handler) {
     }
   };
 }
-var server = new McpServer({ name: "dbhawk", version: "0.3.0" });
-server.tool(
+var server = new McpServer({ name: "dbhawk", version: "0.4.0" });
+var READ_ONLY = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false };
+var WRITE = { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false };
+var datasourceArg = external_exports.string().optional().describe("Datasource name; defaults to DBHAWK_DEFAULT_DATASOURCE");
+server.registerTool(
+  "get_permissions",
+  {
+    title: "Get MCP permissions",
+    description: "What the current user may do over MCP: their MCP tier(s), the allowed operations (with the SQL keywords that classify a statement as each operation), the row cap, and which operations need the user's confirmation. Call this before writing SQL that changes data or schema.",
+    inputSchema: {},
+    annotations: READ_ONLY
+  },
+  guard(async () => ok(await api("GET", "/permissions")))
+);
+server.registerTool(
   "list_datasources",
-  "List the datasources assigned to the current user. Returns name, dbType, readOnly, requiresDbLogin, aiEnabled.",
-  {},
+  {
+    title: "List datasources",
+    description: "List the datasources assigned to the current user. Returns name, dbType, readOnly, requiresDbLogin, aiEnabled.",
+    inputSchema: {},
+    annotations: READ_ONLY
+  },
   guard(async () => ok(await api("GET", "/datasources")))
 );
-server.tool(
+server.registerTool(
   "get_datasource",
-  "Get capabilities of one datasource (dbType, readOnly, whether it needs a DB login, whether HawkAI is enabled).",
-  { datasource: external_exports.string().describe("Datasource name, e.g. 'Oracle-OVH'") },
+  {
+    title: "Get datasource",
+    description: "Get capabilities of one datasource (dbType, readOnly, whether it needs a DB login, whether HawkAI is enabled).",
+    inputSchema: { datasource: external_exports.string().describe("Datasource name, e.g. 'Oracle-OVH'") },
+    annotations: READ_ONLY
+  },
   guard(async ({ datasource }) => ok(await api("GET", `/datasources/${seg(resolveDatasource(datasource))}`)))
 );
-server.tool(
+server.registerTool(
   "list_catalogs",
-  "List the catalogs (databases) of a datasource, for DB types that have a catalog level above the schema (MSSQL, Snowflake). Returns an empty list for databases with no catalog concept (Oracle, MySQL, MongoDB) - for those, skip the catalog argument on list_schemas/list_objects/list_columns.",
   {
-    datasource: external_exports.string().optional().describe("Datasource name; defaults to DBHAWK_DEFAULT_DATASOURCE")
+    title: "List catalogs",
+    description: "List the catalogs (databases) of a datasource, for DB types that have a catalog level above the schema (MSSQL, Snowflake). Returns an empty list for databases with no catalog concept (Oracle, MySQL, MongoDB) - for those, skip the catalog argument on list_schemas/list_objects/list_columns.",
+    inputSchema: { datasource: datasourceArg },
+    annotations: READ_ONLY
   },
-  guard(
-    async ({ datasource }) => ok(await api("GET", `/datasources/${seg(resolveDatasource(datasource))}/catalogs`))
-  )
+  guard(async ({ datasource }) => ok(await api("GET", `/datasources/${seg(resolveDatasource(datasource))}/catalogs`)))
 );
-server.tool(
+server.registerTool(
   "list_schemas",
-  "List the schemas of a datasource.",
   {
-    datasource: external_exports.string().optional().describe("Datasource name; defaults to DBHAWK_DEFAULT_DATASOURCE"),
-    catalog: external_exports.string().optional().describe("Catalog / database name, if the DB uses one")
+    title: "List schemas",
+    description: "List the schemas of a datasource.",
+    inputSchema: {
+      datasource: datasourceArg,
+      catalog: external_exports.string().optional().describe("Catalog / database name, if the DB uses one")
+    },
+    annotations: READ_ONLY
   },
   guard(async ({ datasource, catalog }) => {
     const q = catalog ? `?catalog=${seg(catalog)}` : "";
     return ok(await api("GET", `/datasources/${seg(resolveDatasource(datasource))}/schemas${q}`));
   })
 );
-server.tool(
+server.registerTool(
   "list_objects",
-  "List database objects (tables/views/etc) in a schema. Access control of the calling user applies.",
   {
-    datasource: external_exports.string().optional().describe("Datasource name; defaults to DBHAWK_DEFAULT_DATASOURCE"),
-    schema: external_exports.string().describe("Schema name"),
-    type: external_exports.string().optional().describe("JDBC object types, comma separated (e.g. 'TABLE,VIEW'). Defaults to TABLE."),
-    catalog: external_exports.string().optional().describe("Catalog / database name, if the DB uses one"),
-    query: external_exports.string().optional().describe("Case-insensitive name filter")
+    title: "List objects",
+    description: "List database objects (tables/views/etc) in a schema. Access control of the calling user applies.",
+    inputSchema: {
+      datasource: datasourceArg,
+      schema: external_exports.string().describe("Schema name"),
+      type: external_exports.string().optional().describe("JDBC object types, comma separated (e.g. 'TABLE,VIEW'). Defaults to TABLE."),
+      catalog: external_exports.string().optional().describe("Catalog / database name, if the DB uses one"),
+      query: external_exports.string().optional().describe("Case-insensitive name filter")
+    },
+    annotations: READ_ONLY
   },
   guard(async ({ datasource, schema, type, catalog, query }) => {
     const params = new URLSearchParams();
@@ -21303,19 +21332,21 @@ server.tool(
     if (catalog) params.set("catalog", catalog);
     if (query) params.set("query", query);
     const qs = params.toString() ? `?${params.toString()}` : "";
-    return ok(
-      await api("GET", `/datasources/${seg(resolveDatasource(datasource))}/schemas/${seg(schema)}/objects${qs}`)
-    );
+    return ok(await api("GET", `/datasources/${seg(resolveDatasource(datasource))}/schemas/${seg(schema)}/objects${qs}`));
   })
 );
-server.tool(
+server.registerTool(
   "list_columns",
-  "List the columns of a table/view: name, type, nullable.",
   {
-    datasource: external_exports.string().optional().describe("Datasource name; defaults to DBHAWK_DEFAULT_DATASOURCE"),
-    schema: external_exports.string().describe("Schema name"),
-    object: external_exports.string().describe("Table or view name"),
-    catalog: external_exports.string().optional().describe("Catalog / database name, if the DB uses one")
+    title: "List columns",
+    description: "List the columns of a table/view: name, type, nullable.",
+    inputSchema: {
+      datasource: datasourceArg,
+      schema: external_exports.string().describe("Schema name"),
+      object: external_exports.string().describe("Table or view name"),
+      catalog: external_exports.string().optional().describe("Catalog / database name, if the DB uses one")
+    },
+    annotations: READ_ONLY
   },
   guard(async ({ datasource, schema, object: object3, catalog }) => {
     const q = catalog ? `?catalog=${seg(catalog)}` : "";
@@ -21327,31 +21358,53 @@ server.tool(
     );
   })
 );
-server.tool(
+server.registerTool(
   "run_query",
-  "Run a READ-ONLY SQL query against a datasource. Writes are rejected. Rows are capped (default 200, max 5000); the result reports { rows, rowCount, truncated }. Column masking of the user applies.",
   {
-    datasource: external_exports.string().optional().describe("Datasource name; defaults to DBHAWK_DEFAULT_DATASOURCE"),
-    query: external_exports.string().describe("A single read-only SQL statement"),
-    maxRows: external_exports.number().int().positive().optional().describe("Row cap for this call (<= 5000)"),
-    dbUserName: external_exports.string().optional().describe("DB user, only if the datasource requiresDbLogin"),
-    dbPassword: external_exports.string().optional().describe("DB password, only if the datasource requiresDbLogin")
+    title: "Run read-only query",
+    description: "Run a READ-ONLY SQL statement (SELECT, WITH, SHOW, EXPLAIN if the tier allows it...) against a datasource. Anything that changes data or schema is refused here - use execute_statement for that. Rows are capped (default 200, the MCP tier may lower the max of 5000); the result reports { rows, rowCount, truncated }. Access control and column masking of the user apply.",
+    inputSchema: {
+      datasource: datasourceArg,
+      query: external_exports.string().describe("A single read-only SQL statement"),
+      maxRows: external_exports.number().int().positive().optional().describe("Row cap for this call (<= 5000)")
+    },
+    annotations: READ_ONLY
   },
-  guard(async ({ datasource, query, maxRows, dbUserName, dbPassword }) => {
-    const body = { query };
+  guard(async ({ datasource, query, maxRows }) => {
+    const body = { query, readOnly: true };
     if (maxRows !== void 0) body.maxRows = maxRows;
-    if (dbUserName !== void 0) body.dbUserName = dbUserName;
-    if (dbPassword !== void 0) body.dbPassword = dbPassword;
     return ok(await api("POST", `/datasources/${seg(resolveDatasource(datasource))}/query`, { body }));
   })
 );
-server.tool(
-  "text_to_sql",
-  "HawkAI text-to-SQL: turn a natural-language question into a SQL statement for the datasource. Only works when the datasource has aiEnabled=true.",
+server.registerTool(
+  "execute_statement",
   {
-    datasource: external_exports.string().optional().describe("Datasource name; defaults to DBHAWK_DEFAULT_DATASOURCE"),
-    prompt: external_exports.string().describe("The natural-language question"),
-    sessionId: external_exports.string().optional().describe("Optional conversation id to keep context across calls")
+    title: "Execute data / schema change",
+    description: "Execute ONE SQL statement that changes data or schema (INSERT, UPDATE, DELETE, MERGE, CREATE, ALTER, DROP...). Only works when the user's MCP tier allows that operation - see get_permissions. Workflow: 1) show the exact statement to the user; 2) call this tool without confirm - if the tier requires confirmation, DBHawk returns { confirmationRequired: true, executed: false } and runs nothing; 3) only after the user explicitly approves THIS statement, call again with the same statement and confirm=true. Never set confirm=true on your own initiative. Returns the affected row count.",
+    inputSchema: {
+      datasource: datasourceArg,
+      statement: external_exports.string().describe("A single SQL statement that changes data or schema"),
+      confirm: external_exports.boolean().optional().describe("true only after the user explicitly approved this exact statement")
+    },
+    annotations: WRITE
+  },
+  guard(async ({ datasource, statement, confirm }) => {
+    const body = { query: statement };
+    if (confirm === true) body.confirm = true;
+    return ok(await api("POST", `/datasources/${seg(resolveDatasource(datasource))}/query`, { body }));
+  })
+);
+server.registerTool(
+  "text_to_sql",
+  {
+    title: "Text to SQL",
+    description: "HawkAI text-to-SQL: turn a natural-language question into a SQL statement for the datasource. Only works when the datasource has aiEnabled=true. It only generates statement types the user's MCP tier allows. It does not execute anything: run the result with run_query, or execute_statement for a change.",
+    inputSchema: {
+      datasource: datasourceArg,
+      prompt: external_exports.string().describe("The natural-language question"),
+      sessionId: external_exports.string().optional().describe("Optional conversation id to keep context across calls")
+    },
+    annotations: { ...READ_ONLY, idempotentHint: false }
   },
   guard(async ({ datasource, prompt, sessionId }) => {
     const body = { prompt };
@@ -21359,13 +21412,17 @@ server.tool(
     return ok(await api("POST", `/datasources/${seg(resolveDatasource(datasource))}/ai/ask`, { body }));
   })
 );
-server.tool(
+server.registerTool(
   "optimize_sql",
-  "HawkAI SQL optimization suggestions for a given statement.",
   {
-    datasource: external_exports.string().optional().describe("Datasource name; defaults to DBHAWK_DEFAULT_DATASOURCE"),
-    sql: external_exports.string().describe("The SQL statement to optimize"),
-    schema: external_exports.string().optional().describe("Schema context, if relevant")
+    title: "Optimize SQL",
+    description: "HawkAI SQL optimization suggestions for a given statement. Does not execute anything.",
+    inputSchema: {
+      datasource: datasourceArg,
+      sql: external_exports.string().describe("The SQL statement to optimize"),
+      schema: external_exports.string().optional().describe("Schema context, if relevant")
+    },
+    annotations: { ...READ_ONLY, idempotentHint: false }
   },
   guard(async ({ datasource, sql, schema }) => {
     const body = { sql };
@@ -21373,12 +21430,16 @@ server.tool(
     return ok(await api("POST", `/datasources/${seg(resolveDatasource(datasource))}/ai/optimize`, { body }));
   })
 );
-server.tool(
+server.registerTool(
   "format_sql",
-  "Pretty-print / format a SQL statement.",
   {
-    query: external_exports.string().describe("The SQL statement to format"),
-    dbDialect: external_exports.string().optional().describe("Optional dialect hint (e.g. ORACLE, MYSQL, POSTGRESQL)")
+    title: "Format SQL",
+    description: "Pretty-print / format a SQL statement.",
+    inputSchema: {
+      query: external_exports.string().describe("The SQL statement to format"),
+      dbDialect: external_exports.string().optional().describe("Optional dialect hint (e.g. ORACLE, MYSQL, POSTGRESQL)")
+    },
+    annotations: READ_ONLY
   },
   guard(async ({ query, dbDialect }) => {
     const body = { query };

@@ -3,9 +3,15 @@
  * DBHawk MCP server.
  *
  * A thin stdio bridge that exposes the DBHawk "/api/v2/mcp" REST surface as MCP tools, so an AI
- * assistant (Claude Desktop, Claude Code, or any MCP client) can explore data the token owner already
- * has access to. Everything here is read-only by design: the server never sends a write statement, and
- * the DBHawk side rejects one anyway (see ApiV2McpController#query).
+ * assistant (Claude Desktop, Claude Code, or any MCP client) can work with data the token owner already
+ * has access to. What it may do is decided by DBHawk, not here: the MCP tier of the user's groups lists the
+ * allowed operations (the default tier is read-only), see get_permissions.
+ *
+ * Reads and writes are separate tools so the MCP client can treat them differently: run_query is annotated
+ * read-only and sends readOnly=true, so DBHawk refuses a write through it even when the tier allows one;
+ * execute_statement is annotated destructive, so the client asks the user before running it, and DBHawk
+ * additionally holds a write back ({ confirmationRequired: true }) until it is repeated with confirm=true
+ * when the tier asks for confirmation. Database credentials never pass through this bridge.
  *
  * Configuration comes from the environment so no secret is ever hard-coded:
  *   DBHAWK_BASE_URL           e.g. https://demo.dbhawk.example.com   (required, no trailing /api)
@@ -184,43 +190,82 @@ function guard(handler) {
   };
 }
 
-const server = new McpServer({ name: "dbhawk", version: "0.3.0" });
+const server = new McpServer({ name: "dbhawk", version: "0.4.0" });
+
+/**
+ * Tool annotations tell the MCP client how risky a tool is. Clients typically let read-only tools run without
+ * asking and prompt the user before a destructive one - which is the human approval for DBHawk writes.
+ * Every DBHawk call reaches the user's own DBHawk server only, so none of them is "open world".
+ */
+const READ_ONLY = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false };
+const WRITE = { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false };
+
+const datasourceArg = z.string().optional().describe("Datasource name; defaults to DBHAWK_DEFAULT_DATASOURCE");
 
 // ---- Discovery -----------------------------------------------------------------------------------
 
-server.tool(
+server.registerTool(
+  "get_permissions",
+  {
+    title: "Get MCP permissions",
+    description:
+      "What the current user may do over MCP: their MCP tier(s), the allowed operations (with the SQL keywords " +
+      "that classify a statement as each operation), the row cap, and which operations need the user's " +
+      "confirmation. Call this before writing SQL that changes data or schema.",
+    inputSchema: {},
+    annotations: READ_ONLY,
+  },
+  guard(async () => ok(await api("GET", "/permissions")))
+);
+
+server.registerTool(
   "list_datasources",
-  "List the datasources assigned to the current user. Returns name, dbType, readOnly, requiresDbLogin, aiEnabled.",
-  {},
+  {
+    title: "List datasources",
+    description:
+      "List the datasources assigned to the current user. Returns name, dbType, readOnly, requiresDbLogin, aiEnabled.",
+    inputSchema: {},
+    annotations: READ_ONLY,
+  },
   guard(async () => ok(await api("GET", "/datasources")))
 );
 
-server.tool(
+server.registerTool(
   "get_datasource",
-  "Get capabilities of one datasource (dbType, readOnly, whether it needs a DB login, whether HawkAI is enabled).",
-  { datasource: z.string().describe("Datasource name, e.g. 'Oracle-OVH'") },
+  {
+    title: "Get datasource",
+    description:
+      "Get capabilities of one datasource (dbType, readOnly, whether it needs a DB login, whether HawkAI is enabled).",
+    inputSchema: { datasource: z.string().describe("Datasource name, e.g. 'Oracle-OVH'") },
+    annotations: READ_ONLY,
+  },
   guard(async ({ datasource }) => ok(await api("GET", `/datasources/${seg(resolveDatasource(datasource))}`)))
 );
 
-server.tool(
+server.registerTool(
   "list_catalogs",
-  "List the catalogs (databases) of a datasource, for DB types that have a catalog level above the schema " +
-    "(MSSQL, Snowflake). Returns an empty list for databases with no catalog concept (Oracle, MySQL, MongoDB) " +
-    "- for those, skip the catalog argument on list_schemas/list_objects/list_columns.",
   {
-    datasource: z.string().optional().describe("Datasource name; defaults to DBHAWK_DEFAULT_DATASOURCE"),
+    title: "List catalogs",
+    description:
+      "List the catalogs (databases) of a datasource, for DB types that have a catalog level above the schema " +
+      "(MSSQL, Snowflake). Returns an empty list for databases with no catalog concept (Oracle, MySQL, MongoDB) " +
+      "- for those, skip the catalog argument on list_schemas/list_objects/list_columns.",
+    inputSchema: { datasource: datasourceArg },
+    annotations: READ_ONLY,
   },
-  guard(async ({ datasource }) =>
-    ok(await api("GET", `/datasources/${seg(resolveDatasource(datasource))}/catalogs`))
-  )
+  guard(async ({ datasource }) => ok(await api("GET", `/datasources/${seg(resolveDatasource(datasource))}/catalogs`)))
 );
 
-server.tool(
+server.registerTool(
   "list_schemas",
-  "List the schemas of a datasource.",
   {
-    datasource: z.string().optional().describe("Datasource name; defaults to DBHAWK_DEFAULT_DATASOURCE"),
-    catalog: z.string().optional().describe("Catalog / database name, if the DB uses one"),
+    title: "List schemas",
+    description: "List the schemas of a datasource.",
+    inputSchema: {
+      datasource: datasourceArg,
+      catalog: z.string().optional().describe("Catalog / database name, if the DB uses one"),
+    },
+    annotations: READ_ONLY,
   },
   guard(async ({ datasource, catalog }) => {
     const q = catalog ? `?catalog=${seg(catalog)}` : "";
@@ -228,18 +273,19 @@ server.tool(
   })
 );
 
-server.tool(
+server.registerTool(
   "list_objects",
-  "List database objects (tables/views/etc) in a schema. Access control of the calling user applies.",
   {
-    datasource: z.string().optional().describe("Datasource name; defaults to DBHAWK_DEFAULT_DATASOURCE"),
-    schema: z.string().describe("Schema name"),
-    type: z
-      .string()
-      .optional()
-      .describe("JDBC object types, comma separated (e.g. 'TABLE,VIEW'). Defaults to TABLE."),
-    catalog: z.string().optional().describe("Catalog / database name, if the DB uses one"),
-    query: z.string().optional().describe("Case-insensitive name filter"),
+    title: "List objects",
+    description: "List database objects (tables/views/etc) in a schema. Access control of the calling user applies.",
+    inputSchema: {
+      datasource: datasourceArg,
+      schema: z.string().describe("Schema name"),
+      type: z.string().optional().describe("JDBC object types, comma separated (e.g. 'TABLE,VIEW'). Defaults to TABLE."),
+      catalog: z.string().optional().describe("Catalog / database name, if the DB uses one"),
+      query: z.string().optional().describe("Case-insensitive name filter"),
+    },
+    annotations: READ_ONLY,
   },
   guard(async ({ datasource, schema, type, catalog, query }) => {
     const params = new URLSearchParams();
@@ -247,20 +293,22 @@ server.tool(
     if (catalog) params.set("catalog", catalog);
     if (query) params.set("query", query);
     const qs = params.toString() ? `?${params.toString()}` : "";
-    return ok(
-      await api("GET", `/datasources/${seg(resolveDatasource(datasource))}/schemas/${seg(schema)}/objects${qs}`)
-    );
+    return ok(await api("GET", `/datasources/${seg(resolveDatasource(datasource))}/schemas/${seg(schema)}/objects${qs}`));
   })
 );
 
-server.tool(
+server.registerTool(
   "list_columns",
-  "List the columns of a table/view: name, type, nullable.",
   {
-    datasource: z.string().optional().describe("Datasource name; defaults to DBHAWK_DEFAULT_DATASOURCE"),
-    schema: z.string().describe("Schema name"),
-    object: z.string().describe("Table or view name"),
-    catalog: z.string().optional().describe("Catalog / database name, if the DB uses one"),
+    title: "List columns",
+    description: "List the columns of a table/view: name, type, nullable.",
+    inputSchema: {
+      datasource: datasourceArg,
+      schema: z.string().describe("Schema name"),
+      object: z.string().describe("Table or view name"),
+      catalog: z.string().optional().describe("Catalog / database name, if the DB uses one"),
+    },
+    annotations: READ_ONLY,
   },
   guard(async ({ datasource, schema, object, catalog }) => {
     const q = catalog ? `?catalog=${seg(catalog)}` : "";
@@ -275,36 +323,75 @@ server.tool(
 
 // ---- Querying ------------------------------------------------------------------------------------
 
-server.tool(
+server.registerTool(
   "run_query",
-  "Run a READ-ONLY SQL query against a datasource. Writes are rejected. Rows are capped (default 200, " +
-    "max 5000); the result reports { rows, rowCount, truncated }. Column masking of the user applies.",
   {
-    datasource: z.string().optional().describe("Datasource name; defaults to DBHAWK_DEFAULT_DATASOURCE"),
-    query: z.string().describe("A single read-only SQL statement"),
-    maxRows: z.number().int().positive().optional().describe("Row cap for this call (<= 5000)"),
-    dbUserName: z.string().optional().describe("DB user, only if the datasource requiresDbLogin"),
-    dbPassword: z.string().optional().describe("DB password, only if the datasource requiresDbLogin"),
+    title: "Run read-only query",
+    description:
+      "Run a READ-ONLY SQL statement (SELECT, WITH, SHOW, EXPLAIN if the tier allows it...) against a datasource. " +
+      "Anything that changes data or schema is refused here - use execute_statement for that. Rows are capped " +
+      "(default 200, the MCP tier may lower the max of 5000); the result reports { rows, rowCount, truncated }. " +
+      "Access control and column masking of the user apply.",
+    inputSchema: {
+      datasource: datasourceArg,
+      query: z.string().describe("A single read-only SQL statement"),
+      maxRows: z.number().int().positive().optional().describe("Row cap for this call (<= 5000)"),
+    },
+    annotations: READ_ONLY,
   },
-  guard(async ({ datasource, query, maxRows, dbUserName, dbPassword }) => {
-    const body = { query };
+  guard(async ({ datasource, query, maxRows }) => {
+    // readOnly makes DBHawk refuse a write even when the user's MCP tier would allow it: this tool is
+    // declared read-only, so the client may run it without asking the user.
+    const body = { query, readOnly: true };
     if (maxRows !== undefined) body.maxRows = maxRows;
-    if (dbUserName !== undefined) body.dbUserName = dbUserName;
-    if (dbPassword !== undefined) body.dbPassword = dbPassword;
+    return ok(await api("POST", `/datasources/${seg(resolveDatasource(datasource))}/query`, { body }));
+  })
+);
+
+server.registerTool(
+  "execute_statement",
+  {
+    title: "Execute data / schema change",
+    description:
+      "Execute ONE SQL statement that changes data or schema (INSERT, UPDATE, DELETE, MERGE, CREATE, ALTER, " +
+      "DROP...). Only works when the user's MCP tier allows that operation - see get_permissions. " +
+      "Workflow: 1) show the exact statement to the user; 2) call this tool without confirm - if the tier " +
+      "requires confirmation, DBHawk returns { confirmationRequired: true, executed: false } and runs nothing; " +
+      "3) only after the user explicitly approves THIS statement, call again with the same statement and " +
+      "confirm=true. Never set confirm=true on your own initiative. Returns the affected row count.",
+    inputSchema: {
+      datasource: datasourceArg,
+      statement: z.string().describe("A single SQL statement that changes data or schema"),
+      confirm: z
+        .boolean()
+        .optional()
+        .describe("true only after the user explicitly approved this exact statement"),
+    },
+    annotations: WRITE,
+  },
+  guard(async ({ datasource, statement, confirm }) => {
+    const body = { query: statement };
+    if (confirm === true) body.confirm = true;
     return ok(await api("POST", `/datasources/${seg(resolveDatasource(datasource))}/query`, { body }));
   })
 );
 
 // ---- HawkAI --------------------------------------------------------------------------------------
 
-server.tool(
+server.registerTool(
   "text_to_sql",
-  "HawkAI text-to-SQL: turn a natural-language question into a SQL statement for the datasource. " +
-    "Only works when the datasource has aiEnabled=true.",
   {
-    datasource: z.string().optional().describe("Datasource name; defaults to DBHAWK_DEFAULT_DATASOURCE"),
-    prompt: z.string().describe("The natural-language question"),
-    sessionId: z.string().optional().describe("Optional conversation id to keep context across calls"),
+    title: "Text to SQL",
+    description:
+      "HawkAI text-to-SQL: turn a natural-language question into a SQL statement for the datasource. Only works " +
+      "when the datasource has aiEnabled=true. It only generates statement types the user's MCP tier allows. " +
+      "It does not execute anything: run the result with run_query, or execute_statement for a change.",
+    inputSchema: {
+      datasource: datasourceArg,
+      prompt: z.string().describe("The natural-language question"),
+      sessionId: z.string().optional().describe("Optional conversation id to keep context across calls"),
+    },
+    annotations: { ...READ_ONLY, idempotentHint: false },
   },
   guard(async ({ datasource, prompt, sessionId }) => {
     const body = { prompt };
@@ -313,13 +400,17 @@ server.tool(
   })
 );
 
-server.tool(
+server.registerTool(
   "optimize_sql",
-  "HawkAI SQL optimization suggestions for a given statement.",
   {
-    datasource: z.string().optional().describe("Datasource name; defaults to DBHAWK_DEFAULT_DATASOURCE"),
-    sql: z.string().describe("The SQL statement to optimize"),
-    schema: z.string().optional().describe("Schema context, if relevant"),
+    title: "Optimize SQL",
+    description: "HawkAI SQL optimization suggestions for a given statement. Does not execute anything.",
+    inputSchema: {
+      datasource: datasourceArg,
+      sql: z.string().describe("The SQL statement to optimize"),
+      schema: z.string().optional().describe("Schema context, if relevant"),
+    },
+    annotations: { ...READ_ONLY, idempotentHint: false },
   },
   guard(async ({ datasource, sql, schema }) => {
     const body = { sql };
@@ -328,12 +419,16 @@ server.tool(
   })
 );
 
-server.tool(
+server.registerTool(
   "format_sql",
-  "Pretty-print / format a SQL statement.",
   {
-    query: z.string().describe("The SQL statement to format"),
-    dbDialect: z.string().optional().describe("Optional dialect hint (e.g. ORACLE, MYSQL, POSTGRESQL)"),
+    title: "Format SQL",
+    description: "Pretty-print / format a SQL statement.",
+    inputSchema: {
+      query: z.string().describe("The SQL statement to format"),
+      dbDialect: z.string().optional().describe("Optional dialect hint (e.g. ORACLE, MYSQL, POSTGRESQL)"),
+    },
+    annotations: READ_ONLY,
   },
   guard(async ({ query, dbDialect }) => {
     const body = { query };

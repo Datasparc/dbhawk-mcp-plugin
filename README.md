@@ -1,11 +1,13 @@
 # DBHawk MCP — Claude Code plugin + demo connector
 
-Gives an AI assistant read-only access to DBHawk: list the datasources a user is assigned,
-browse schema/tables/columns, run **read-only** queries (with the user's access control and column
-masking applied), and use **HawkAI** text-to-SQL / optimize / format.
+Gives an AI assistant access to DBHawk: list the datasources a user is assigned, browse
+schema/tables/columns, run queries (with the user's access control and column masking applied), and use
+**HawkAI** text-to-SQL / optimize / format. Data or schema changes are possible only when the user's
+**MCP tier** allows them — the default tier is read-only (see [Reads, writes and MCP tiers](#reads-writes-and-mcp-tiers)).
 
-It's a thin bridge over the existing DBHawk REST surface at `/api/v2/mcp/**`. No write path exists;
-DBHawk rejects any statement that modifies data or schema, whatever role the token owner has.
+It's a thin bridge over the existing DBHawk REST surface at `/api/v2/mcp/**`. DBHawk decides what runs:
+every statement is classified and checked against the tier of the user's groups, whatever role the token
+owner has.
 
 **Auth is two steps.** `DBHAWK_TOKEN` is a personal token (`dbh_<id>.<secret>`), **not** a JWT — the
 MCP endpoints won't accept it directly. On its first call the server exchanges it for a short-lived JWT
@@ -135,10 +137,25 @@ Desktop doesn't understand plugins or `userConfig` — pass the three values as 
 | `list_schemas` | `GET /datasources/{ds}/schemas` |
 | `list_objects` | `GET /datasources/{ds}/schemas/{schema}/objects` |
 | `list_columns` | `GET /datasources/{ds}/schemas/{schema}/objects/{object}/columns` |
-| `run_query` | `POST /datasources/{ds}/query` (read-only, row-capped 200/5000) |
+| `get_permissions` | `GET /permissions` (the user's MCP tier(s), allowed operations, row cap, confirmations) |
+| `run_query` | `POST /datasources/{ds}/query` with `readOnly: true` (reads only, even if the tier allows writes; row-capped 200/5000) |
+| `execute_statement` | `POST /datasources/{ds}/query` (data / schema change, only if the MCP tier allows it; `confirm` flow) |
 | `text_to_sql` | `POST /datasources/{ds}/ai/ask` |
 | `optimize_sql` | `POST /datasources/{ds}/ai/optimize` |
 | `format_sql` | `POST /format-query` |
+
+### Reads, writes and MCP tiers
+
+What a user may do is set in DBHawk, per user group, by its **MCP tier** (Admin → MCP Management → MCP Tiers).
+The default tier is read-only; higher tiers add EXPLAIN, DML (INSERT / UPDATE / DELETE / MERGE), DDL and
+admin operations. `get_permissions` tells the model what its tier allows.
+
+Reads and writes are separate tools on purpose. `run_query` is annotated read-only (`readOnlyHint`), and DBHawk
+refuses a write sent through it even when the tier allows one. `execute_statement` is annotated destructive
+(`destructiveHint`), so MCP clients such as Claude ask the user before each call - keep it that way, do not
+"always allow" it. When the tier also asks for confirmation, DBHawk answers the first call with
+`{ confirmationRequired: true, executed: false }` and runs the statement only when it is repeated with
+`confirm: true`. A read-only datasource refuses writes whatever the tier says.
 
 Demo prompts: *"Which datasources do I have?"* → *"Show tables in schema public of Postgres-Demo"* →
 *"What columns does customers have?"* → *"How many orders last month by status?"* (text-to-SQL → run).
@@ -171,6 +188,22 @@ git add dist/dbhawk-mcp.mjs && git commit -m "rebuild bundle"
 
 `dist/dbhawk-mcp.mjs` is committed on purpose — it is the artifact users run. `node_modules/` is not.
 
+### Tests
+
+```bash
+cd dbhawk/mcp-server
+npm test           # builds the bundle, then runs test/*.test.js
+npm run test:only  # runs the tests against the current bundle, without rebuilding
+```
+
+The tests start the real bundle over stdio, drive it with the official MCP client and point it at a fake
+DBHawk HTTP server that records every request (`test/helpers.js`), so no DBHawk instance is needed. They cover
+the tool catalogue and annotations, the read/write contract (`run_query` always sends `readOnly: true`,
+`execute_statement` sends `confirm` only when asked), the tool → endpoint mapping, the token exchange (header,
+JWT caching, one re-exchange on 401) and error reporting. CI ([`.github/workflows/mcp-server.yml`](.github/workflows/mcp-server.yml))
+runs them on Node 18/20/22 and also fails when the committed `dist/` bundle is stale, when the `mcpb/server`
+copy differs from it, or when the versions in the manifests, `server.json` and `index.js` disagree.
+
 ### Build & release the desktop extension (`.mcpb`)
 
 The `mcpb/` folder is the extension source: [`mcpb/manifest.json`](mcpb/manifest.json) (declares the
@@ -198,7 +231,15 @@ in step with `dbhawk/.claude-plugin/plugin.json` so the plugin and the extension
   user isn't in the MCP access group, or (SSO/SAML users) the sign-in re-validation window lapsed — log
   in to DBHawk once via your identity provider, the same token then works again. Reissue if needed.
 - **`DBHawk API 401/403`** (after exchange) — wrong scope or the user lacks `ACCESS_TO_DATA`.
-- **`Only read-only statements…`** — a write/DDL statement was attempted; expected, MCP is read-only.
+- **`… needs MCP operation(s) …, which your MCP tier … does not allow`** — the statement type is not in the
+  user's MCP tier (the default tier is read-only). An admin assigns a higher tier to one of the user's groups
+  (DBHawk → Admin → MCP Management → MCP Tiers, then the User Group dialog → MCP Tier).
+- **`… cannot run as a read-only query. Use the execute_statement tool instead.`** — a write was sent through
+  `run_query`; the model has to use `execute_statement`, where the client asks the user first.
+- **`Datasource '…' is read-only …`** (403) — the datasource is marked read-only in DBHawk, so writes are
+  refused whatever the MCP tier allows; reads still work.
+- **`confirmationRequired: true, executed: false`** — not an error: the tier asks for confirmation of writes.
+  Show the statement to the user and, after they approve it, call `execute_statement` again with `confirm: true`.
 - **`Missing configuration`** on startup — `DBHAWK_BASE_URL` / `DBHAWK_TOKEN` not set.
 - **Server not listed in `/mcp`** — confirm Node ≥ 18 and that `dist/dbhawk-mcp.mjs` exists in the
   installed plugin. In Claude Desktop, use the full path to `node` (Desktop has a minimal PATH).

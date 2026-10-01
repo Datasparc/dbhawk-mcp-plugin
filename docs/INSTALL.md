@@ -34,7 +34,7 @@ through a graphical form — no manual config editing.
 1. Open the releases page:
    <a href="https://github.com/datasparc/dbhawk-mcp-plugin/releases" target="_blank" rel="noopener noreferrer"><strong>https://github.com/datasparc/dbhawk-mcp-plugin/releases</strong></a>
 2. In the latest release, under **Assets**, download `dbhawk-<version>.mcpb`
-   (for example, `dbhawk-0.3.0.mcpb`).
+   (for example, `dbhawk-0.4.0.mcpb`).
 
 ---
 
@@ -102,7 +102,9 @@ Claude Desktop does **not** auto-update file-installed extensions. To upgrade:
 | **Missing configuration** on startup | Base URL or API Token is empty — open the form and check. |
 | **token exchange failed: 401/403** | The token is wrong, revoked, or expired; or the user isn't in the MCP access group. For SSO/SAML users, sign in to DBHawk once via your IdP, then the token works again. Reissue it if needed. |
 | **DBHawk API 401/403** (after exchange) | Wrong scope, or the user lacks `ACCESS_TO_DATA`. |
-| **Only read-only statements…** | A write/DDL statement was attempted — this is expected; MCP is read-only. |
+| **… does not allow** (MCP tier) | The statement type is not in the user's MCP tier (the default tier is read-only). An admin can assign a higher tier to the user group (Admin → MCP Management → MCP Tiers). |
+| **Use the execute_statement tool instead** | A write was sent through the read-only `run_query` tool; the assistant should retry with `execute_statement`. |
+| **`confirmationRequired: true`** | Not an error: the tier asks for confirmation. Approve the statement, the assistant then repeats it with `confirm: true`. |
 | **No DBHawk tools in chat** | Check that the extension is enabled; look at the card's status in **Extensions** and the logs under **Settings → Developer**. |
 
 MCP logs in Claude Desktop (Windows):
