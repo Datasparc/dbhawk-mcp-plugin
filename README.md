@@ -12,8 +12,9 @@ owner has.
 **Auth is two steps.** `DBHAWK_TOKEN` is a personal token (`dbh_<id>.<secret>`), **not** a JWT — the
 MCP endpoints won't accept it directly. On its first call the server exchanges it for a short-lived JWT
 at `POST /api/v2/auth/token/exchange` (sending the personal token in the `X-API-Token` header), caches
-that JWT, and sends it as the `Bearer` for every `/api/v2/mcp/**` call. When the JWT expires the next
-call gets a `401`, and the server re-exchanges and retries once — transparent to you.
+that JWT, and sends it as the `Bearer` for every `/api/v2/mcp/**` call. Shortly before the JWT's `exp` the
+server exchanges a fresh one up front; if a call still gets a `401` it re-exchanges and retries once —
+transparent to you.
 
 ```
 dbhawk-mcp-plugin/                 <- this folder = a Claude Code "marketplace" (push it to git)
@@ -139,6 +140,9 @@ Desktop doesn't understand plugins or `userConfig` — pass the three values as 
 | `list_columns` | `GET /datasources/{ds}/schemas/{schema}/objects/{object}/columns` |
 | `get_permissions` | `GET /permissions` (the user's MCP tier(s), allowed operations, row cap, confirmations) |
 | `run_query` | `POST /datasources/{ds}/query` with `readOnly: true` (reads only, even if the tier allows writes; row-capped 200/5000) |
+| `explain_plan` | `POST /datasources/{ds}/explain` (execution plan built and read on one connection; the statement is never executed; needs `explain_plan` in the tier) |
+| `list_sessions` | `GET /datasources/{ds}/sessions` (active database sessions; needs `active_sessions`) |
+| `kill_session` | `POST /datasources/{ds}/sessions/{id}/kill` (ends one listed session; destructive, `confirm` flow; needs `kill_session`) |
 | `execute_statement` | `POST /datasources/{ds}/query` (data / schema change, only if the MCP tier allows it; `confirm` flow) |
 | `text_to_sql` | `POST /datasources/{ds}/ai/ask` |
 | `optimize_sql` | `POST /datasources/{ds}/ai/optimize` |
@@ -241,5 +245,7 @@ in step with `dbhawk/.claude-plugin/plugin.json` so the plugin and the extension
 - **`confirmationRequired: true, executed: false`** — not an error: the tier asks for confirmation of writes.
   Show the statement to the user and, after they approve it, call `execute_statement` again with `confirm: true`.
 - **`Missing configuration`** on startup — `DBHAWK_BASE_URL` / `DBHAWK_TOKEN` not set.
+- **`Invalid configuration`** on startup — `DBHAWK_BASE_URL` is not an `https://` / `http://` URL, contains
+  credentials, a query or a trailing `/api`, or `DBHAWK_TOKEN` is a JWT instead of the personal `dbh_…` token.
 - **Server not listed in `/mcp`** — confirm Node ≥ 18 and that `dist/dbhawk-mcp.mjs` exists in the
   installed plugin. In Claude Desktop, use the full path to `node` (Desktop has a minimal PATH).

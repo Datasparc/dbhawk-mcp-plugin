@@ -29,17 +29,19 @@ const call = (name, args = {}) => client.callTool({ name, arguments: args });
 
 const READ_TOOLS = [
   "get_permissions", "list_datasources", "get_datasource", "list_catalogs", "list_schemas", "list_objects",
-  "list_columns", "run_query", "text_to_sql", "optimize_sql", "format_sql",
+  "list_columns", "run_query", "explain_plan", "list_sessions", "text_to_sql", "optimize_sql", "format_sql",
 ];
 
-test("exposes exactly the 12 DBHawk tools", async () => {
+const WRITE_TOOLS = ["execute_statement", "kill_session"];
+
+test("exposes exactly the 15 DBHawk tools", async () => {
   const { tools } = await client.listTools();
-  assert.deepEqual(tools.map((t) => t.name).sort(), [...READ_TOOLS, "execute_statement"].sort());
+  assert.deepEqual(tools.map((t) => t.name).sort(), [...READ_TOOLS, ...WRITE_TOOLS].sort());
 });
 
-test("every tool except execute_statement is annotated read-only and non-destructive", async () => {
+test("every tool except the write tools is annotated read-only and non-destructive", async () => {
   const { tools } = await client.listTools();
-  for (const tool of tools.filter((t) => t.name !== "execute_statement")) {
+  for (const tool of tools.filter((t) => !WRITE_TOOLS.includes(t.name))) {
     assert.equal(tool.annotations?.readOnlyHint, true, `${tool.name} readOnlyHint`);
     assert.equal(tool.annotations?.destructiveHint, false, `${tool.name} destructiveHint`);
     assert.equal(tool.annotations?.openWorldHint, false, `${tool.name} openWorldHint`);
@@ -144,6 +146,49 @@ test("list_objects passes type, catalog and name filter", async () => {
 test("list_columns", async () => {
   await call("list_columns", { schema: "public", object: "customers" });
   assert.equal(fake.last().path, `${MCP}/datasources/pg-demo/schemas/public/objects/customers/columns`);
+});
+
+test("explain_plan posts the statement to the explain endpoint, with no readOnly or confirm flag", async () => {
+  nextResponse = { json: { rowCount: 2, planText: "Plan hash value: 1" } };
+  const result = await call("explain_plan", { datasource: "Oracle-OVH", query: "SELECT * FROM HR.TESTIMPORT" });
+  assert.equal(jsonOf(result).planText, "Plan hash value: 1");
+  assert.equal(fake.last().method, "POST");
+  assert.equal(fake.last().path, `${MCP}/datasources/Oracle-OVH/explain`);
+  assert.deepEqual(fake.last().body, { query: "SELECT * FROM HR.TESTIMPORT" });
+});
+
+test("run_query points the model at explain_plan for plans", async () => {
+  const { tools } = await client.listTools();
+  assert.match(tools.find((t) => t.name === "run_query").description, /explain_plan/);
+  assert.match(tools.find((t) => t.name === "explain_plan").description, /never executes/);
+});
+
+test("kill_session is annotated destructive, so MCP clients ask the user first", async () => {
+  const { tools } = await client.listTools();
+  const tool = tools.find((t) => t.name === "kill_session");
+  assert.equal(tool.annotations.readOnlyHint, false);
+  assert.equal(tool.annotations.destructiveHint, true);
+});
+
+test("list_sessions", async () => {
+  nextResponse = { json: { rowCount: 1, sessions: [{ sessionId: "17,301", user: "HR" }] } };
+  const result = await call("list_sessions", { datasource: "oracle21" });
+  assert.equal(jsonOf(result).sessions[0].sessionId, "17,301");
+  assert.equal(fake.last().method, "GET");
+  assert.equal(fake.last().path, `${MCP}/datasources/oracle21/sessions`);
+});
+
+test("kill_session encodes the Oracle id and confirms only when asked", async () => {
+  await call("kill_session", { datasource: "oracle21", sessionId: "17,301" });
+  assert.equal(fake.last().method, "POST");
+  assert.equal(fake.last().rawUrl, `${MCP}/datasources/oracle21/sessions/17%2C301/kill`);
+  assert.deepEqual(fake.last().body, {});
+
+  await call("kill_session", { datasource: "oracle21", sessionId: "17,301", confirm: false });
+  assert.deepEqual(fake.last().body, {});
+
+  await call("kill_session", { datasource: "oracle21", sessionId: "17,301", confirm: true });
+  assert.deepEqual(fake.last().body, { confirm: true });
 });
 
 test("text_to_sql posts the prompt and optional session", async () => {

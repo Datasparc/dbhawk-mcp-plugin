@@ -88,3 +88,32 @@ test("missing configuration: exits with an error on stderr, stdout stays clean",
   assert.match(stderr, /Missing configuration/);
   assert.equal(stdout, "", "stdout is the JSON-RPC channel and must stay empty");
 });
+
+/** Start the bundle with the given configuration only and collect its exit code and output. */
+async function runWithEnv(env) {
+  const child = spawn(process.execPath, [BUNDLE], {
+    env: { PATH: process.env.PATH, SystemRoot: process.env.SystemRoot, ...env },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  let stdout = "";
+  let stderr = "";
+  child.stdout.on("data", (d) => (stdout += d));
+  child.stderr.on("data", (d) => (stderr += d));
+  const code = await new Promise((resolve) => child.on("close", resolve));
+  return { code, stdout, stderr };
+}
+
+for (const [name, env, message] of [
+  ["a base URL that is not a URL", { DBHAWK_BASE_URL: "dbhawk.example.com", DBHAWK_TOKEN: "dbh_1.x" }, /not a valid URL/],
+  ["a non-http base URL", { DBHAWK_BASE_URL: "ftp://dbhawk.example.com", DBHAWK_TOKEN: "dbh_1.x" }, /must use https/],
+  ["a base URL with credentials", { DBHAWK_BASE_URL: "https://u:p@dbhawk.example.com", DBHAWK_TOKEN: "dbh_1.x" }, /must not contain credentials/],
+  ["a base URL ending in /api", { DBHAWK_BASE_URL: "https://dbhawk.example.com/api/", DBHAWK_TOKEN: "dbh_1.x" }, /without the trailing \/api/],
+  ["a JWT pasted as the token", { DBHAWK_BASE_URL: "https://dbhawk.example.com", DBHAWK_TOKEN: "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ4In0.sig" }, /looks like a JWT/],
+]) {
+  test(`invalid configuration: ${name} is refused at startup`, async () => {
+    const { code, stdout, stderr } = await runWithEnv(env);
+    assert.equal(code, 1);
+    assert.match(stderr, message);
+    assert.equal(stdout, "", "stdout is the JSON-RPC channel and must stay empty");
+  });
+}

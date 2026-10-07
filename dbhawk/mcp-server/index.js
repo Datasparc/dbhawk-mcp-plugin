@@ -27,16 +27,45 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 
-const RAW_BASE_URL = process.env.DBHAWK_BASE_URL;
-const TOKEN = process.env.DBHAWK_TOKEN;
-const DEFAULT_DATASOURCE = process.env.DBHAWK_DEFAULT_DATASOURCE || "";
+const RAW_BASE_URL = (process.env.DBHAWK_BASE_URL || "").trim();
+const TOKEN = (process.env.DBHAWK_TOKEN || "").trim();
+const DEFAULT_DATASOURCE = (process.env.DBHAWK_DEFAULT_DATASOURCE || "").trim();
+
+/** Print a configuration problem and stop. stderr, not stdout: stdout is the JSON-RPC channel and must stay clean. */
+function configError(message) {
+  console.error(`[dbhawk-mcp] ${message}`);
+  process.exit(1);
+}
 
 if (!RAW_BASE_URL || !TOKEN) {
-  // stderr, not stdout: stdout is the JSON-RPC channel and must stay clean.
-  console.error(
-    "[dbhawk-mcp] Missing configuration. Set DBHAWK_BASE_URL and DBHAWK_TOKEN environment variables."
-  );
-  process.exit(1);
+  configError("Missing configuration. Set DBHAWK_BASE_URL and DBHAWK_TOKEN environment variables.");
+}
+
+let baseUrl;
+try {
+  baseUrl = new URL(RAW_BASE_URL);
+} catch {
+  configError(`Invalid configuration: DBHAWK_BASE_URL "${RAW_BASE_URL}" is not a valid URL (e.g. https://dbhawk.example.com).`);
+}
+if (baseUrl.protocol !== "https:" && baseUrl.protocol !== "http:") {
+  configError(`Invalid configuration: DBHAWK_BASE_URL must use https:// (or http://), got "${baseUrl.protocol}".`);
+}
+if (baseUrl.username || baseUrl.password || baseUrl.search || baseUrl.hash) {
+  configError("Invalid configuration: DBHAWK_BASE_URL must not contain credentials, a query string or a fragment.");
+}
+if (/\/api\/?$/.test(baseUrl.pathname)) {
+  configError("Invalid configuration: DBHAWK_BASE_URL must be the DBHawk base URL without the trailing /api.");
+}
+// A JWT (three base64url parts, header starting "eyJ") is the most common paste mistake: the server needs the
+// personal token it exchanges for a JWT, not a JWT itself.
+if (/^eyJ[\w-]*\.[\w-]+\.[\w-]*$/.test(TOKEN)) {
+  configError("Invalid configuration: DBHAWK_TOKEN looks like a JWT. Use the MCP-scoped personal token (dbh_...) from DBHawk -> User Profile -> API Token.");
+}
+if (/\s/.test(TOKEN)) {
+  configError("Invalid configuration: DBHAWK_TOKEN must not contain whitespace.");
+}
+if (baseUrl.protocol === "http:" && !["localhost", "127.0.0.1", "[::1]"].includes(baseUrl.hostname)) {
+  console.error("[dbhawk-mcp] Warning: DBHAWK_BASE_URL uses plain http://, so the API token travels unencrypted. Use https://.");
 }
 
 // Normalise: strip a trailing slash. The DispatcherServlet is mapped to /api/* (web.xml), the MCP
@@ -50,6 +79,26 @@ const TOKEN_EXCHANGE_PATH = "/v2/auth/token/exchange";
  * so the next call re-exchanges whenever DBHawk answers 401 (the JWT expired after its configured lifetime).
  */
 let jwt = null;
+
+/**
+ * When the cached JWT expires (ms since epoch, from its "exp" claim), or 0 when unknown. A JWT this close to
+ * expiry is re-exchanged before the call instead of spending a round trip on a 401.
+ */
+let jwtExpiresAt = 0;
+const JWT_EXPIRY_SKEW_MS = 30_000;
+
+/** Read the "exp" claim of a JWT without verifying it (DBHawk verifies); 0 when absent or unreadable. */
+function jwtExpiry(token) {
+  try {
+    const claims = JSON.parse(Buffer.from(token.split(".")[1], "base64url").toString("utf8"));
+    return typeof claims.exp === "number" ? claims.exp * 1000 : 0;
+  } catch {
+    return 0;
+  }
+}
+
+/** True when there is no cached JWT or it is about to expire. */
+const jwtNeedsExchange = () => !jwt || (jwtExpiresAt > 0 && Date.now() >= jwtExpiresAt - JWT_EXPIRY_SKEW_MS);
 
 /**
  * Exchange the personal API token (DBHAWK_TOKEN, dbh_<id>.<secret>) for a signed JWT. The personal token
@@ -91,6 +140,7 @@ async function exchangeToken() {
   }
 
   jwt = body.jwt;
+  jwtExpiresAt = jwtExpiry(jwt);
   return jwt;
 }
 
@@ -127,14 +177,15 @@ async function api(method, path, opts = {}) {
     }
   };
 
-  if (!jwt) {
+  if (jwtNeedsExchange()) {
     await exchangeToken();
   }
 
   let res = await send();
 
-  // The cached JWT expires after DBHawk's configured token lifetime; on the first 401 exchange the personal
-  // token for a fresh JWT and retry once. A second 401 is a real authorization failure and falls through.
+  // A JWT known to be expiring is replaced above; a 401 can still come from clock skew, a revoked session or a
+  // DBHawk restart, so exchange the personal token for a fresh JWT and retry once. A second 401 is a real
+  // authorization failure (the fresh JWT was refused too) and falls through - retrying again would not help.
   if (res.status === 401) {
     await exchangeToken();
     res = await send();
@@ -190,7 +241,7 @@ function guard(handler) {
   };
 }
 
-const server = new McpServer({ name: "dbhawk", version: "0.4.0" });
+const server = new McpServer({ name: "dbhawk", version: "0.4.1" });
 
 /**
  * Tool annotations tell the MCP client how risky a tool is. Clients typically let read-only tools run without
@@ -328,7 +379,8 @@ server.registerTool(
   {
     title: "Run read-only query",
     description:
-      "Run a READ-ONLY SQL statement (SELECT, WITH, SHOW, EXPLAIN if the tier allows it...) against a datasource. " +
+      "Run a READ-ONLY SQL statement (SELECT, WITH, SHOW ...) against a datasource. For execution plans use " +
+      "explain_plan instead. " +
       "Anything that changes data or schema is refused here - use execute_statement for that. Rows are capped " +
       "(default 200, the MCP tier may lower the max of 5000); the result reports { rows, rowCount, truncated }. " +
       "Access control and column masking of the user apply.",
@@ -346,6 +398,29 @@ server.registerTool(
     if (maxRows !== undefined) body.maxRows = maxRows;
     return ok(await api("POST", `/datasources/${seg(resolveDatasource(datasource))}/query`, { body }));
   })
+);
+
+server.registerTool(
+  "explain_plan",
+  {
+    title: "Explain plan",
+    description:
+      "Show the execution plan of ONE SQL statement. DBHawk builds and reads the plan in a single call on one " +
+      "database connection (Oracle EXPLAIN PLAN + DBMS_XPLAN, SQL Server SHOWPLAN, EXPLAIN on PostgreSQL, MySQL, " +
+      "Snowflake, Redshift ...), and never executes the statement. Send the plain statement, without EXPLAIN. " +
+      "Use this tool for plans: do NOT run EXPLAIN PLAN FOR and DBMS_XPLAN.DISPLAY through run_query - every " +
+      "call uses its own connection, so the plan is lost between the two calls. Returns planText (single-column " +
+      "plans) and the plan rows. Needs the explain_plan operation in the user's MCP tier, plus the statement's own " +
+      "operation (a plan of a DELETE needs delete_rows) - see get_permissions.",
+    inputSchema: {
+      datasource: datasourceArg,
+      query: z.string().describe("The single SQL statement to explain, e.g. SELECT * FROM orders WHERE id = 1"),
+    },
+    annotations: READ_ONLY,
+  },
+  guard(async ({ datasource, query }) =>
+    ok(await api("POST", `/datasources/${seg(resolveDatasource(datasource))}/explain`, { body: { query } }))
+  )
 );
 
 server.registerTool(
@@ -373,6 +448,51 @@ server.registerTool(
     const body = { query: statement };
     if (confirm === true) body.confirm = true;
     return ok(await api("POST", `/datasources/${seg(resolveDatasource(datasource))}/query`, { body }));
+  })
+);
+
+// ---- Sessions ------------------------------------------------------------------------------------
+
+server.registerTool(
+  "list_sessions",
+  {
+    title: "List database sessions",
+    description:
+      "List the active sessions of the datasource's database: sessionId, user, status, program, machine, logonTime, " +
+      "secondsInCall and the current SQL (first 200 characters; omitted when DBHawk does not share data with AI " +
+      "models). The same sessions DBHawk's Session Manager shows. Works for Oracle, SQL Server, PostgreSQL, Redshift " +
+      "and MySQL / MariaDB. Needs the active_sessions operation in the user's MCP tier - see get_permissions.",
+    inputSchema: { datasource: datasourceArg },
+    annotations: { ...READ_ONLY, idempotentHint: false },
+  },
+  guard(async ({ datasource }) => ok(await api("GET", `/datasources/${seg(resolveDatasource(datasource))}/sessions`)))
+);
+
+server.registerTool(
+  "kill_session",
+  {
+    title: "End a database session",
+    description:
+      "End ONE database session, by a sessionId returned by list_sessions (Oracle: 'sid,serial#', e.g. '123,4567'; " +
+      "other databases: a number). Its open transaction is rolled back. DBHawk builds the command itself - do not " +
+      "send KILL / ALTER SYSTEM statements through execute_statement for this. Workflow: 1) show the session (user, " +
+      "program, SQL) to the user; 2) call without confirm - if the tier requires confirmation DBHawk returns " +
+      "{ confirmationRequired: true, executed: false, session } and ends nothing; 3) only after the user explicitly " +
+      "approves ending THIS session, call again with confirm=true. Never set confirm=true on your own initiative. " +
+      "Needs the kill_session operation in the user's MCP tier.",
+    inputSchema: {
+      datasource: datasourceArg,
+      sessionId: z.string().describe("Session id from list_sessions, e.g. '123,4567' (Oracle) or '55'"),
+      confirm: z.boolean().optional().describe("true only after the user explicitly approved ending this session"),
+    },
+    annotations: WRITE,
+  },
+  guard(async ({ datasource, sessionId, confirm }) => {
+    const body = {};
+    if (confirm === true) body.confirm = true;
+    return ok(
+      await api("POST", `/datasources/${seg(resolveDatasource(datasource))}/sessions/${seg(sessionId)}/kill`, { body })
+    );
   })
 );
 

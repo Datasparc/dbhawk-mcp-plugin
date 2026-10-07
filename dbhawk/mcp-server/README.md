@@ -62,6 +62,9 @@ Claude Desktop users can also install the one-click extension from the [releases
 | `list_columns` | Columns of a table or view |
 | `get_permissions` | Your MCP tier: allowed operations, row cap, what needs confirmation |
 | `run_query` | Run a read-only query (row-capped); changes are always refused here |
+| `explain_plan` | Execution plan of a statement (Oracle, SQL Server, PostgreSQL, MySQL ...), without running it |
+| `list_sessions` | Active database sessions, if your MCP tier allows it |
+| `kill_session` | End one database session, if your MCP tier allows it (asks you first) |
 | `execute_statement` | Run a data or schema change, if your MCP tier allows it |
 | `text_to_sql` | HawkAI: turn a question into SQL |
 | `optimize_sql` | HawkAI: suggestions to speed up a query |

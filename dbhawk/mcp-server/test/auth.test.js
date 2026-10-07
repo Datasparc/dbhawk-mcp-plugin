@@ -67,6 +67,34 @@ test("a 401 (expired JWT) triggers one re-exchange and a retry", async () => {
   });
 });
 
+/** A JWT-shaped string whose "exp" claim is the given number of seconds from now. */
+const jwtExpiringIn = (n, seconds) =>
+  ["eyJhbGciOiJIUzI1NiJ9", Buffer.from(JSON.stringify({ sub: `u${n}`, exp: Math.floor(Date.now() / 1000) + seconds })).toString("base64url"), "sig"].join(".");
+
+test("a JWT about to expire is re-exchanged before the call, without a 401", async () => {
+  // the first JWT is already inside the expiry margin, the second is good for an hour
+  const issued = [];
+  const exchange = (call, n) => {
+    issued.push(jwtExpiringIn(n, n === 1 ? 5 : 3600));
+    return { json: { jwt: issued[n - 1] } };
+  };
+
+  await withBridge({ exchange }, async (fake, client) => {
+    await listDatasources(client);
+    await listDatasources(client);
+
+    await listDatasources(client);
+
+    // the fresh first JWT serves the first call; the next call sees it inside the margin and re-exchanges up
+    // front (no request is spent on a 401); the second JWT is then cached
+    assert.equal(fake.exchangeCalls().length, 2);
+    assert.deepEqual(
+      fake.mcpCalls().map((c) => c.headers.authorization),
+      [`Bearer ${issued[0]}`, `Bearer ${issued[1]}`, `Bearer ${issued[1]}`]
+    );
+  });
+});
+
 test("a second 401 is reported, without an endless retry loop", async () => {
   const handler = () => ({ status: 401, json: { message: "access revoked" } });
 
