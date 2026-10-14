@@ -7199,6 +7199,9 @@ var require_dist = __commonJS({
   }
 });
 
+// index.js
+import { randomUUID } from "node:crypto";
+
 // node_modules/zod/v3/external.js
 var external_exports = {};
 __export(external_exports, {
@@ -21537,6 +21540,16 @@ var TOKEN_EXCHANGE_PATH = "/v2/auth/token/exchange";
 var jwt = null;
 var jwtExpiresAt = 0;
 var JWT_EXPIRY_SKEW_MS = 3e4;
+var SESSION_ID = randomUUID();
+function clientHeaders() {
+  const headers = { "User-Agent": "dbhawk-mcp", "X-MCP-Session": SESSION_ID };
+  const info = server.server.getClientVersion();
+  if (info && info.name) {
+    const label = (info.version ? `${info.name}/${info.version}` : info.name).replace(/[^\x20-\x7e]/g, "").trim();
+    if (label) headers["X-MCP-Client"] = label.slice(0, 200);
+  }
+  return headers;
+}
 function jwtExpiry(token) {
   try {
     const claims = JSON.parse(Buffer.from(token.split(".")[1], "base64url").toString("utf8"));
@@ -21552,7 +21565,7 @@ async function exchangeToken() {
   try {
     res = await fetch(url, {
       method: "POST",
-      headers: { "X-API-Token": TOKEN, Accept: "application/json" }
+      headers: { ...clientHeaders(), "X-API-Token": TOKEN, Accept: "application/json" }
     });
   } catch (e) {
     throw new Error(`Network error calling POST ${url}: ${e.message}`);
@@ -21579,7 +21592,7 @@ async function exchangeToken() {
 async function api(method, path, opts = {}) {
   const url = API_BASE + path;
   const send = async () => {
-    const headers = { Authorization: `Bearer ${jwt}`, Accept: "application/json" };
+    const headers = { ...clientHeaders(), Authorization: `Bearer ${jwt}`, Accept: "application/json" };
     const init = { method, headers };
     if (opts.body !== void 0) {
       headers["Content-Type"] = "application/json";
@@ -21639,7 +21652,7 @@ function guard(handler) {
     }
   };
 }
-var server = new McpServer({ name: "dbhawk", version: "0.4.1" });
+var server = new McpServer({ name: "dbhawk", version: "0.4.2" });
 var READ_ONLY = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false };
 var WRITE = { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false };
 var datasourceArg = external_exports.string().optional().describe("Datasource name; defaults to DBHAWK_DEFAULT_DATASOURCE");

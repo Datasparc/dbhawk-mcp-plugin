@@ -18,6 +18,10 @@ All of DBHawk's access control and column masking apply. What the assistant may 
 | `DBHAWK_TOKEN` | yes | Your personal MCP token (`dbh_…`) |
 | `DBHAWK_DEFAULT_DATASOURCE` | no | Datasource to use when a request doesn't name one |
 
+Every request also tells DBHawk which agent is calling, for its API log: `X-MCP-Client` (the MCP client's
+`name/version` from the MCP handshake, e.g. `claude-code/2.1.4`) and `X-MCP-Session` (a random id per server
+process). The token stays what identifies you; the client name is only a label.
+
 ## Setup
 
 ### Claude Code

@@ -1,7 +1,7 @@
 {
   "name": "dbhawk",
   "displayName": "DBHawk",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "Bridges an AI assistant to DBHawk: list datasources, browse schema, run queries and - when the user's MCP tier allows it - data or schema changes, and use HawkAI text-to-SQL over the /api/v2/mcp REST API.",
   "author": {
     "name": "Datasparc"

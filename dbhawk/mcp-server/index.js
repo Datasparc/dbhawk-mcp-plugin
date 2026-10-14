@@ -23,6 +23,7 @@
  * JWT at /api/v2/auth/token/exchange, caches it, and re-exchanges when it expires. See exchangeToken().
  */
 
+import { randomUUID } from "node:crypto";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
@@ -87,6 +88,25 @@ let jwt = null;
 let jwtExpiresAt = 0;
 const JWT_EXPIRY_SKEW_MS = 30_000;
 
+/** Id of this MCP session: over stdio one bridge process serves exactly one client connection. */
+const SESSION_ID = randomUUID();
+
+/**
+ * Who is calling, for DBHawk's API log (McpClient / McpSession): the MCP client's name/version from the initialize
+ * handshake (e.g. claude-code/2.1.4) and this session's id. The client name is self-reported - DBHawk attributes the
+ * call to the token; this only labels which agent used it. Header values must be visible ASCII, so anything else is
+ * dropped. X-MCP-Client is left out until the handshake has told us the client.
+ */
+function clientHeaders() {
+  const headers = { "User-Agent": "dbhawk-mcp", "X-MCP-Session": SESSION_ID };
+  const info = server.server.getClientVersion();
+  if (info && info.name) {
+    const label = (info.version ? `${info.name}/${info.version}` : info.name).replace(/[^\x20-\x7e]/g, "").trim();
+    if (label) headers["X-MCP-Client"] = label.slice(0, 200);
+  }
+  return headers;
+}
+
 /** Read the "exp" claim of a JWT without verifying it (DBHawk verifies); 0 when absent or unreadable. */
 function jwtExpiry(token) {
   try {
@@ -112,7 +132,7 @@ async function exchangeToken() {
   try {
     res = await fetch(url, {
       method: "POST",
-      headers: { "X-API-Token": TOKEN, Accept: "application/json" },
+      headers: { ...clientHeaders(), "X-API-Token": TOKEN, Accept: "application/json" },
     });
   } catch (e) {
     throw new Error(`Network error calling POST ${url}: ${e.message}`);
@@ -159,7 +179,7 @@ async function api(method, path, opts = {}) {
   const url = API_BASE + path;
 
   const send = async () => {
-    const headers = { Authorization: `Bearer ${jwt}`, Accept: "application/json" };
+    const headers = { ...clientHeaders(), Authorization: `Bearer ${jwt}`, Accept: "application/json" };
     const init = { method, headers };
 
     if (opts.body !== undefined) {
@@ -241,7 +261,7 @@ function guard(handler) {
   };
 }
 
-const server = new McpServer({ name: "dbhawk", version: "0.4.1" });
+const server = new McpServer({ name: "dbhawk", version: "0.4.2" });
 
 /**
  * Tool annotations tell the MCP client how risky a tool is. Clients typically let read-only tools run without
