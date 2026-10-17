@@ -306,7 +306,7 @@ server.registerTool(
   {
     title: "Get datasource",
     description:
-      "Get capabilities of one datasource (dbType, readOnly, whether it needs a DB login, whether HawkAI is enabled).",
+      "Get capabilities of one datasource (dbType, readOnly, whether it needs a DB login, whether DBHawk AI is enabled).",
     inputSchema: { datasource: z.string().describe("Datasource name, e.g. 'Oracle-OVH'") },
     annotations: READ_ONLY,
   },
@@ -516,14 +516,14 @@ server.registerTool(
   })
 );
 
-// ---- HawkAI --------------------------------------------------------------------------------------
+// ---- DBHawk AI --------------------------------------------------------------------------------------
 
 server.registerTool(
   "text_to_sql",
   {
     title: "Text to SQL",
     description:
-      "HawkAI text-to-SQL: turn a natural-language question into a SQL statement for the datasource. Only works " +
+      "DBHawk AI text-to-SQL: turn a natural-language question into a SQL statement for the datasource. Only works " +
       "when the datasource has aiEnabled=true. It only generates statement types the user's MCP tier allows. " +
       "It does not execute anything: run the result with run_query, or execute_statement for a change.",
     inputSchema: {
@@ -544,7 +544,7 @@ server.registerTool(
   "optimize_sql",
   {
     title: "Optimize SQL",
-    description: "HawkAI SQL optimization suggestions for a given statement. Does not execute anything.",
+    description: "DBHawk AI SQL optimization suggestions for a given statement. Does not execute anything.",
     inputSchema: {
       datasource: datasourceArg,
       sql: z.string().describe("The SQL statement to optimize"),
