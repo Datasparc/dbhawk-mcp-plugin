@@ -2,7 +2,7 @@
 
 Gives an AI assistant access to DBHawk: list the datasources a user is assigned, browse
 schema/tables/columns, run queries (with the user's access control and column masking applied), and use
-**HawkAI** text-to-SQL / optimize / format. Data or schema changes are possible only when the user's
+**DBHawk AI** text-to-SQL / optimize / format. Data or schema changes are possible only when the user's
 **MCP tier** allows them — the default tier is read-only (see [Reads, writes and MCP tiers](#reads-writes-and-mcp-tiers)).
 
 It's a thin bridge over the existing DBHawk REST surface at `/api/v2/mcp/**`. DBHawk decides what runs:

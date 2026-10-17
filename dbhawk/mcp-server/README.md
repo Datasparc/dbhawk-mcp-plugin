@@ -1,6 +1,6 @@
 # @dbhawk/mcp
 
-MCP server for [DBHawk](https://www.datasparc.com). It gives an AI assistant (Claude, VS Code, Cursor, or any MCP client) access to the databases you already use in DBHawk: list your datasources, browse schemas, tables and columns, run queries, and use HawkAI text-to-SQL.
+MCP server for [DBHawk](https://www.datasparc.com). It gives an AI assistant (Claude, VS Code, Cursor, or any MCP client) access to the databases you already use in DBHawk: list your datasources, browse schemas, tables and columns, run queries, and use DBHawk AI text-to-SQL.
 
 All of DBHawk's access control and column masking apply. What the assistant may do is set by your DBHawk administrator through the **MCP tier** of your user groups: the default tier is read-only, higher tiers can allow data or schema changes. A change always goes through the separate `execute_statement` tool, which MCP clients confirm with you before running it, and DBHawk can additionally hold it until you approve it.
 
@@ -70,8 +70,8 @@ Claude Desktop users can also install the one-click extension from the [releases
 | `list_sessions` | Active database sessions, if your MCP tier allows it |
 | `kill_session` | End one database session, if your MCP tier allows it (asks you first) |
 | `execute_statement` | Run a data or schema change, if your MCP tier allows it |
-| `text_to_sql` | HawkAI: turn a question into SQL |
-| `optimize_sql` | HawkAI: suggestions to speed up a query |
+| `text_to_sql` | DBHawk AI: turn a question into SQL |
+| `optimize_sql` | DBHawk AI: suggestions to speed up a query |
 | `format_sql` | Pretty-print a SQL statement |
 
 ## More

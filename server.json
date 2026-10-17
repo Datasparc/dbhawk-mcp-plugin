@@ -1,7 +1,7 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "com.datasparc/dbhawk",
-  "description": "Secure access to DBHawk datasources: browse schemas, run governed queries, HawkAI text-to-SQL.",
+  "description": "Secure access to DBHawk datasources: browse schemas, run governed queries, DBHawk AI text-to-SQL.",
   "version": "0.4.2",
   "repository": {
     "url": "https://github.com/Datasparc/dbhawk-mcp-plugin",

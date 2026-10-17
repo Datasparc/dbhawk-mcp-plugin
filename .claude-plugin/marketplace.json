@@ -10,7 +10,7 @@
     {
       "name": "dbhawk",
       "source": "./dbhawk",
-      "description": "Read-only DBHawk datasource exploration + HawkAI over the /api/v2/mcp API.",
+      "description": "Read-only DBHawk datasource exploration + DBHawk AI over the /api/v2/mcp API.",
       "version": "0.4.2"
     }
   ]
