@@ -219,9 +219,16 @@ cp dbhawk/mcp-server/dist/dbhawk-mcp.mjs mcpb/server/dbhawk-mcp.mjs   # keep the
 npx @anthropic-ai/mcpb validate mcpb/manifest.json                   # optional sanity check
 npx @anthropic-ai/mcpb pack mcpb dbhawk-<version>.mcpb                # produces the .mcpb
 
-gh release create v<version> dbhawk-<version>.mcpb \
+# SBOM of everything inlined into the bundle (all deps are devDependencies, so don't --omit dev)
+(cd dbhawk/mcp-server && npm sbom --sbom-format cyclonedx) > dbhawk-mcp-<version>.cdx.json
+
+gh release create v<version> dbhawk-<version>.mcpb dbhawk-mcp-<version>.cdx.json \
   --title "DBHawk <version>" --notes "DBHawk MCP desktop extension"
 ```
+
+The `.cdx.json` is a CycloneDX SBOM listing the exact package versions esbuild inlined into
+`dist/dbhawk-mcp.mjs`, so the bundle can be audited without unpacking it. Like the `.mcpb`, it is
+git-ignored and ships only as a Release asset.
 
 Bump `version` in `mcpb/manifest.json` for every release (Desktop keys upgrades off it). The `.mcpb`
 is **git-ignored** — it ships as a Release asset, not in the tree. Keep `mcpb/manifest.json`'s version

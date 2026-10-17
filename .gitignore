@@ -4,6 +4,8 @@ node_modules/
 
 # Packed desktop-extension artifact — distributed via GitHub Releases, not the git tree.
 *.mcpb
+# SBOM generated per release (see README) — also a Release asset.
+*.cdx.json
 
 # Do NOT ignore dbhawk/mcp-server/dist/ — the self-contained bundle must be committed
 # so `/plugin install` works after a bare git clone (no npm install step).

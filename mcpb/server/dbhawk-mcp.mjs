@@ -21611,14 +21611,20 @@ async function api(method, path, opts = {}) {
     await exchangeToken();
   }
   let res = await send();
+  let retried = false;
   if (res.status === 401) {
     await exchangeToken();
     res = await send();
+    retried = true;
   }
   const payload = await res.text();
   if (!res.ok) {
+    const hint = retried && res.status === 401 ? ". Still 401 after exchanging DBHAWK_TOKEN for a fresh JWT and retrying once (no further retries) - the token or session was likely revoked, or the user lost MCP access. Reissue the token in DBHawk -> User Profile -> API Token." : "";
+    if (hint) {
+      console.error(`[dbhawk-mcp] ${method} ${path} refused with 401 after re-exchange and one retry.`);
+    }
     throw new Error(
-      `DBHawk API ${res.status} ${res.statusText} for ${method} ${path}` + (payload ? `: ${payload.slice(0, 500)}` : "")
+      `DBHawk API ${res.status} ${res.statusText} for ${method} ${path}` + (payload ? `: ${payload.slice(0, 500)}` : "") + hint
     );
   }
   if (opts.text) return payload;

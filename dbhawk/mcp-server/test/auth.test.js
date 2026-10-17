@@ -104,6 +104,7 @@ test("a second 401 is reported, without an endless retry loop", async () => {
     assert.equal(result.isError, true);
     assert.match(textOf(result), /DBHawk API 401/);
     assert.match(textOf(result), /access revoked/);
+    assert.match(textOf(result), /retrying once \(no further retries\)/);
     assert.equal(fake.exchangeCalls().length, 2);
     assert.equal(fake.mcpCalls().length, 2);
   });
