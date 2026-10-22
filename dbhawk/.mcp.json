@@ -5,7 +5,7 @@
       "args": ["${CLAUDE_PLUGIN_ROOT}/mcp-server/dist/dbhawk-mcp.mjs"],
       "env": {
         "DBHAWK_BASE_URL": "${user_config.dbhawk_base_url}",
-        "DBHAWK_TOKEN": "${user_config.dbhawk_token}",
+        "DBHAWK_TOKEN": "${user_config.dbhawk_token:-}",
         "DBHAWK_DEFAULT_DATASOURCE": "${user_config.dbhawk_default_datasource:-}"
       }
     }

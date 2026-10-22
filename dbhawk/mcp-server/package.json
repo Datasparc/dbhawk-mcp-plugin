@@ -1,6 +1,6 @@
 {
   "name": "@dbhawk/mcp",
-  "version": "0.4.2",
+  "version": "0.5.0",
   "description": "MCP server bridging an AI assistant to the DBHawk /api/v2/mcp REST API (datasource exploration, tier-gated SQL execution + DBHawk AI).",
   "mcpName": "com.datasparc/dbhawk",
   "type": "module",

@@ -15,7 +15,7 @@ All of DBHawk's access control and column masking apply. What the assistant may 
 | Variable | Required | Description |
 |---|---|---|
 | `DBHAWK_BASE_URL` | yes | Your DBHawk URL, e.g. `https://dbhawk.example.com` (no trailing `/api`) |
-| `DBHAWK_TOKEN` | yes | Your personal MCP token (`dbh_…`) |
+| `DBHAWK_TOKEN` | no | Your personal MCP token (`dbh_…`). Leave it out to sign in to DBHawk through the browser on first use (DBHawk 7.0.1+) |
 | `DBHAWK_DEFAULT_DATASOURCE` | no | Datasource to use when a request doesn't name one |
 
 Every request also tells DBHawk which agent is calling, for its API log: `X-MCP-Client` (the MCP client's

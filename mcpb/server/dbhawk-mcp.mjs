@@ -3262,8 +3262,8 @@ var require_utils = __commonJS({
       }
       return ind;
     }
-    function removeDotSegments(path) {
-      let input = path;
+    function removeDotSegments(path2) {
+      let input = path2;
       const output = [];
       let nextSlash = -1;
       let len = 0;
@@ -3672,8 +3672,8 @@ var require_schemes = __commonJS({
       }
       if (wsComponent.resourceName) {
         const queryIndex = wsComponent.resourceName.indexOf("?");
-        const path = queryIndex === -1 ? wsComponent.resourceName : wsComponent.resourceName.slice(0, queryIndex);
-        wsComponent.path = path && path !== "/" ? path : void 0;
+        const path2 = queryIndex === -1 ? wsComponent.resourceName : wsComponent.resourceName.slice(0, queryIndex);
+        wsComponent.path = path2 && path2 !== "/" ? path2 : void 0;
         wsComponent.query = queryIndex === -1 ? void 0 : wsComponent.resourceName.slice(queryIndex + 1);
         wsComponent.resourceName = void 0;
       }
@@ -3732,7 +3732,7 @@ var require_schemes = __commonJS({
       urnComponent.nss = (uuidComponent.uuid || "").toLowerCase();
       return urnComponent;
     }
-    var http = (
+    var http2 = (
       /** @type {SchemeHandler} */
       {
         scheme: "http",
@@ -3745,7 +3745,7 @@ var require_schemes = __commonJS({
       /** @type {SchemeHandler} */
       {
         scheme: "https",
-        domainHost: http.domainHost,
+        domainHost: http2.domainHost,
         parse: httpParse,
         serialize: httpSerialize
       }
@@ -3789,7 +3789,7 @@ var require_schemes = __commonJS({
     var SCHEMES = (
       /** @type {Record<SchemeName, SchemeHandler>} */
       {
-        http,
+        http: http2,
         https,
         ws,
         wss,
@@ -7186,12 +7186,12 @@ var require_dist = __commonJS({
         throw new Error(`Unknown format "${name}"`);
       return f;
     };
-    function addFormats(ajv, list, fs, exportName) {
+    function addFormats(ajv, list, fs2, exportName) {
       var _a;
       var _b;
       (_a = (_b = ajv.opts.code).formats) !== null && _a !== void 0 ? _a : _b.formats = (0, codegen_1._)`require("ajv-formats/dist/formats").${exportName}`;
       for (const f of list)
-        ajv.addFormat(f, fs[f]);
+        ajv.addFormat(f, fs2[f]);
     }
     module.exports = exports = formatsPlugin;
     Object.defineProperty(exports, "__esModule", { value: true });
@@ -7201,6 +7201,7 @@ var require_dist = __commonJS({
 
 // index.js
 import { randomUUID } from "node:crypto";
+import os2 from "node:os";
 
 // node_modules/zod/v3/external.js
 var external_exports = {};
@@ -7680,8 +7681,8 @@ function getErrorMap() {
 
 // node_modules/zod/v3/helpers/parseUtil.js
 var makeIssue = (params) => {
-  const { data, path, errorMaps, issueData } = params;
-  const fullPath = [...path, ...issueData.path || []];
+  const { data, path: path2, errorMaps, issueData } = params;
+  const fullPath = [...path2, ...issueData.path || []];
   const fullIssue = {
     ...issueData,
     path: fullPath
@@ -7797,11 +7798,11 @@ var errorUtil;
 
 // node_modules/zod/v3/types.js
 var ParseInputLazyPath = class {
-  constructor(parent, value, path, key) {
+  constructor(parent, value, path2, key) {
     this._cachedPath = [];
     this.parent = parent;
     this.data = value;
-    this._path = path;
+    this._path = path2;
     this._key = key;
   }
   get path() {
@@ -11438,10 +11439,10 @@ function assignProp(target, prop, value) {
     configurable: true
   });
 }
-function getElementAtPath(obj, path) {
-  if (!path)
+function getElementAtPath(obj, path2) {
+  if (!path2)
     return obj;
-  return path.reduce((acc, key) => acc?.[key], obj);
+  return path2.reduce((acc, key) => acc?.[key], obj);
 }
 function promiseAllObject(promisesObj) {
   const keys = Object.keys(promisesObj);
@@ -11761,11 +11762,11 @@ function aborted(x, startIndex = 0) {
   }
   return false;
 }
-function prefixIssues(path, issues) {
+function prefixIssues(path2, issues) {
   return issues.map((iss) => {
     var _a;
     (_a = iss).path ?? (_a.path = []);
-    iss.path.unshift(path);
+    iss.path.unshift(path2);
     return iss;
   });
 }
@@ -15176,11 +15177,11 @@ function normalizeObjectSchema(schema) {
   }
   return void 0;
 }
-function getDotPath(path) {
-  if (path.length === 0) {
+function getDotPath(path2) {
+  if (path2.length === 0) {
     return "object root";
   }
-  return path.reduce((acc, seg2, index) => {
+  return path2.reduce((acc, seg2, index) => {
     if (index === 0) {
       return String(seg2);
     }
@@ -21499,16 +21500,301 @@ var StdioServerTransport = class {
   }
 };
 
+// oauth.js
+import { createHash, randomBytes } from "node:crypto";
+import { spawn } from "node:child_process";
+import fs from "node:fs";
+import http from "node:http";
+import os from "node:os";
+import path from "node:path";
+var DEFAULT_CALL_WAIT_MS = 45e3;
+var DEFAULT_SIGN_IN_TTL_MS = 10 * 6e4;
+var EXPIRY_SKEW_MS = 3e4;
+var REDIRECT_PATH = "/callback";
+var SignInError = class extends Error {
+};
+function defaultStoreDir() {
+  if (process.env.DBHAWK_OAUTH_STORE_DIR) return process.env.DBHAWK_OAUTH_STORE_DIR;
+  if (process.platform === "win32" && process.env.APPDATA) return path.join(process.env.APPDATA, "dbhawk-mcp");
+  if (process.platform === "darwin") return path.join(os.homedir(), "Library", "Application Support", "dbhawk-mcp");
+  return path.join(process.env.XDG_CONFIG_HOME || path.join(os.homedir(), ".config"), "dbhawk-mcp");
+}
+var base64url2 = (buffer) => buffer.toString("base64url");
+function pkcePair() {
+  const verifier = base64url2(randomBytes(48));
+  const challenge = base64url2(createHash("sha256").update(verifier).digest());
+  return { verifier, challenge };
+}
+function openBrowser(url) {
+  const custom3 = (process.env.DBHAWK_BROWSER || "").trim();
+  if (custom3 === "none") return false;
+  let command;
+  let args;
+  if (custom3) {
+    command = custom3;
+    args = [url];
+  } else if (process.platform === "win32") {
+    command = "rundll32";
+    args = ["url.dll,FileProtocolHandler", url];
+  } else if (process.platform === "darwin") {
+    command = "open";
+    args = [url];
+  } else {
+    command = "xdg-open";
+    args = [url];
+  }
+  try {
+    const child = spawn(command, args, { detached: true, stdio: "ignore", shell: false });
+    child.on("error", () => {
+    });
+    child.unref();
+    return true;
+  } catch {
+    return false;
+  }
+}
+function createOAuthSession(opts) {
+  const apiRoot = opts.apiRoot;
+  const oauthRoot = apiRoot + "/oauth";
+  const resource = apiRoot + "/v2/mcp/rpc";
+  const log = opts.log || (() => {
+  });
+  const extraHeaders = opts.headers || (() => ({}));
+  const callWaitMs = Number(process.env.DBHAWK_OAUTH_WAIT_MS) || DEFAULT_CALL_WAIT_MS;
+  const signInTtlMs = Number(process.env.DBHAWK_OAUTH_SIGNIN_TTL_MS) || DEFAULT_SIGN_IN_TTL_MS;
+  const storeDir = defaultStoreDir();
+  const storeFile = path.join(storeDir, `oauth-${createHash("sha256").update(apiRoot).digest("hex").slice(0, 16)}.json`);
+  let accessToken = null;
+  let accessExpiresAt = 0;
+  let pending = null;
+  let signIn = null;
+  function readStore() {
+    try {
+      const data = JSON.parse(fs.readFileSync(storeFile, "utf8"));
+      return data && data.apiRoot === apiRoot ? data : {};
+    } catch {
+      return {};
+    }
+  }
+  function writeStore(data) {
+    fs.mkdirSync(storeDir, { recursive: true, mode: 448 });
+    const tmp = storeFile + ".tmp";
+    fs.writeFileSync(tmp, JSON.stringify({ ...data, apiRoot }, null, 2), { mode: 384 });
+    fs.renameSync(tmp, storeFile);
+    try {
+      fs.chmodSync(storeFile, 384);
+    } catch {
+    }
+  }
+  async function post(url, form) {
+    let res;
+    try {
+      res = await fetch(url, {
+        method: "POST",
+        headers: { ...extraHeaders(), Accept: "application/json", "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams(form).toString()
+      });
+    } catch (e) {
+      throw new Error(`Network error calling POST ${url}: ${e.message}`);
+    }
+    const text = await res.text();
+    let body = {};
+    try {
+      body = text ? JSON.parse(text) : {};
+    } catch {
+      body = { error: "invalid_response", error_description: text.slice(0, 300) };
+    }
+    return { status: res.status, ok: res.ok, body };
+  }
+  function accept(body) {
+    if (!body.access_token) throw new Error("DBHawk token response did not contain an access_token");
+    accessToken = body.access_token;
+    accessExpiresAt = Date.now() + (Number(body.expires_in) > 0 ? Number(body.expires_in) * 1e3 : 60 * 6e4);
+    const store = readStore();
+    if (body.refresh_token) store.refreshToken = body.refresh_token;
+    writeStore(store);
+    return accessToken;
+  }
+  async function clientId() {
+    const store = readStore();
+    if (store.clientId) return store.clientId;
+    const url = oauthRoot + "/register";
+    let res;
+    try {
+      res = await fetch(url, {
+        method: "POST",
+        headers: { ...extraHeaders(), Accept: "application/json", "Content-Type": "application/json" },
+        body: JSON.stringify({
+          client_name: opts.clientName || "DBHawk extension",
+          redirect_uris: [`http://127.0.0.1${REDIRECT_PATH}`],
+          grant_types: ["authorization_code", "refresh_token"],
+          response_types: ["code"],
+          token_endpoint_auth_method: "none"
+        })
+      });
+    } catch (e) {
+      throw new Error(`Network error calling POST ${url}: ${e.message}`);
+    }
+    const text = await res.text();
+    if (res.status === 404 || res.status === 405) {
+      throw new SignInError("This DBHawk server does not support signing in from the extension (it needs DBHawk 7.0.1 with the MCP connector). Configure a personal MCP token (DBHawk -> User Profile -> API Token) instead.");
+    }
+    let body;
+    try {
+      body = JSON.parse(text);
+    } catch {
+      body = {};
+    }
+    if (!res.ok || !body.client_id) {
+      throw new Error(`DBHawk client registration failed: ${res.status}${text ? ": " + text.slice(0, 300) : ""}`);
+    }
+    writeStore({ ...store, clientId: body.client_id, refreshToken: void 0 });
+    return body.client_id;
+  }
+  async function refresh(refreshToken, id) {
+    const res = await post(oauthRoot + "/token", { grant_type: "refresh_token", refresh_token: refreshToken, client_id: id });
+    if (res.ok) return accept(res.body);
+    if (res.body.error === "invalid_grant" || res.body.error === "invalid_client" || res.status === 401) {
+      log(`stored DBHawk sign-in is no longer valid (${res.body.error_description || res.body.error}), signing in again`);
+      const store = readStore();
+      delete store.refreshToken;
+      writeStore(store);
+      return null;
+    }
+    if (res.body.error === "access_denied") {
+      throw new SignInError(`DBHawk refused access: ${res.body.error_description || "access denied"}`);
+    }
+    throw new Error(`DBHawk token refresh failed: ${res.status} ${res.body.error_description || res.body.error || ""}`);
+  }
+  async function startSignIn(id) {
+    const { verifier, challenge } = pkcePair();
+    const state = base64url2(randomBytes(24));
+    let resolveCode;
+    let rejectCode;
+    const codePromise = new Promise((resolve, reject) => {
+      resolveCode = resolve;
+      rejectCode = reject;
+    });
+    const listener = http.createServer((req, res) => {
+      const url = new URL(req.url, "http://127.0.0.1");
+      if (url.pathname !== REDIRECT_PATH) {
+        res.statusCode = 404;
+        res.end();
+        return;
+      }
+      if (url.searchParams.get("state") !== state) {
+        res.statusCode = 400;
+        res.end("This sign-in request is not the one the DBHawk extension is waiting for.");
+        return;
+      }
+      const error2 = url.searchParams.get("error");
+      res.setHeader("Content-Type", "text/html; charset=utf-8");
+      res.end(page(
+        error2 ? "DBHawk was not connected" : "DBHawk is connected",
+        error2 ? url.searchParams.get("error_description") || error2 : "You can close this tab and return to Claude."
+      ));
+      if (error2) {
+        rejectCode(new SignInError(`DBHawk sign-in was not completed: ${url.searchParams.get("error_description") || error2}`));
+      } else {
+        resolveCode(url.searchParams.get("code"));
+      }
+    });
+    await new Promise((resolve, reject) => {
+      listener.once("error", reject);
+      listener.listen(0, "127.0.0.1", resolve);
+    });
+    const redirectUri = `http://127.0.0.1:${listener.address().port}${REDIRECT_PATH}`;
+    const authorizeUrl = `${oauthRoot}/authorize?` + new URLSearchParams({
+      response_type: "code",
+      client_id: id,
+      redirect_uri: redirectUri,
+      code_challenge: challenge,
+      code_challenge_method: "S256",
+      state,
+      scope: "mcp",
+      resource
+    }).toString();
+    const timer = setTimeout(() => rejectCode(new SignInError("The DBHawk sign-in timed out. Try again.")), signInTtlMs);
+    timer.unref();
+    const promise = codePromise.then(async (code) => {
+      const res = await post(oauthRoot + "/token", {
+        grant_type: "authorization_code",
+        code,
+        redirect_uri: redirectUri,
+        client_id: id,
+        code_verifier: verifier
+      });
+      if (!res.ok) {
+        throw new SignInError(`DBHawk sign-in failed: ${res.body.error_description || res.body.error || res.status}`);
+      }
+      log("signed in to DBHawk");
+      return accept(res.body);
+    }).finally(() => {
+      clearTimeout(timer);
+      listener.close();
+    });
+    promise.catch(() => {
+    });
+    const opened = openBrowser(authorizeUrl);
+    log(`${opened ? "opened the browser for" : "sign in at"} ${authorizeUrl}`);
+    return { promise, url: authorizeUrl, opened };
+  }
+  async function obtain() {
+    const id = await clientId();
+    const store = readStore();
+    if (store.refreshToken) {
+      const token2 = await refresh(store.refreshToken, id);
+      if (token2) return token2;
+    }
+    if (!signIn) {
+      signIn = await startSignIn(id);
+      signIn.promise.then(() => signIn = null, () => signIn = null);
+    }
+    const current = signIn;
+    let timer;
+    const waited = new Promise((resolve) => {
+      timer = setTimeout(() => resolve(null), callWaitMs);
+    });
+    const token = await Promise.race([current.promise, waited]);
+    clearTimeout(timer);
+    if (token) return token;
+    throw new SignInError(
+      "Sign in to DBHawk in the browser window that " + (current.opened ? "just opened" : "you open at the URL below") + ", approve the access, then repeat this request. If no window appeared, open: " + current.url
+    );
+  }
+  return {
+    /** A valid access token: the cached one, a refreshed one, or one from the browser sign-in. */
+    async accessToken() {
+      if (accessToken && Date.now() < accessExpiresAt - EXPIRY_SKEW_MS) return accessToken;
+      if (!pending) {
+        pending = obtain().finally(() => pending = null);
+      }
+      return pending;
+    },
+    /** Forget the access token after a 401, so the next call refreshes it. */
+    invalidate() {
+      accessToken = null;
+      accessExpiresAt = 0;
+    },
+    storeFile
+  };
+}
+function page(title, message) {
+  const esc2 = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${esc2(title)}</title></head><body style="font-family:sans-serif;margin:64px auto;max-width:480px"><h2>${esc2(title)}</h2><p>${esc2(message)}</p></body></html>`;
+}
+
 // index.js
 var RAW_BASE_URL = (process.env.DBHAWK_BASE_URL || "").trim();
-var TOKEN = (process.env.DBHAWK_TOKEN || "").trim();
+var unsetIfPlaceholder = (value) => /^\$\{[^}]*\}$/.test(value) ? "" : value;
+var TOKEN = unsetIfPlaceholder((process.env.DBHAWK_TOKEN || "").trim());
 var DEFAULT_DATASOURCE = (process.env.DBHAWK_DEFAULT_DATASOURCE || "").trim();
 function configError(message) {
   console.error(`[dbhawk-mcp] ${message}`);
   process.exit(1);
 }
-if (!RAW_BASE_URL || !TOKEN) {
-  configError("Missing configuration. Set DBHAWK_BASE_URL and DBHAWK_TOKEN environment variables.");
+if (!RAW_BASE_URL) {
+  configError("Missing configuration. Set the DBHAWK_BASE_URL environment variable (and DBHAWK_TOKEN unless you sign in through the browser).");
 }
 var baseUrl;
 try {
@@ -21532,11 +21818,17 @@ if (/\s/.test(TOKEN)) {
   configError("Invalid configuration: DBHAWK_TOKEN must not contain whitespace.");
 }
 if (baseUrl.protocol === "http:" && !["localhost", "127.0.0.1", "[::1]"].includes(baseUrl.hostname)) {
-  console.error("[dbhawk-mcp] Warning: DBHAWK_BASE_URL uses plain http://, so the API token travels unencrypted. Use https://.");
+  console.error("[dbhawk-mcp] Warning: DBHAWK_BASE_URL uses plain http://, so tokens travel unencrypted. Use https://.");
 }
 var API_ROOT = RAW_BASE_URL.replace(/\/+$/, "") + "/api";
 var API_BASE = API_ROOT + "/v2/mcp";
 var TOKEN_EXCHANGE_PATH = "/v2/auth/token/exchange";
+var oauth = TOKEN ? null : createOAuthSession({
+  apiRoot: API_ROOT,
+  headers: () => clientHeaders(),
+  log: (message) => console.error(`[dbhawk-mcp] ${message}`),
+  clientName: `DBHawk extension (${os2.hostname()})`
+});
 var jwt = null;
 var jwtExpiresAt = 0;
 var JWT_EXPIRY_SKEW_MS = 3e4;
@@ -21589,10 +21881,11 @@ async function exchangeToken() {
   jwtExpiresAt = jwtExpiry(jwt);
   return jwt;
 }
-async function api(method, path, opts = {}) {
-  const url = API_BASE + path;
+async function api(method, path2, opts = {}) {
+  const url = API_BASE + path2;
   const send = async () => {
-    const headers = { ...clientHeaders(), Authorization: `Bearer ${jwt}`, Accept: "application/json" };
+    const bearer = oauth ? await oauth.accessToken() : jwt;
+    const headers = { ...clientHeaders(), Authorization: `Bearer ${bearer}`, Accept: "application/json" };
     const init = { method, headers };
     if (opts.body !== void 0) {
       headers["Content-Type"] = "application/json";
@@ -21607,24 +21900,28 @@ async function api(method, path, opts = {}) {
       throw new Error(`Network error calling ${method} ${url}: ${e.message}`);
     }
   };
-  if (jwtNeedsExchange()) {
+  if (!oauth && jwtNeedsExchange()) {
     await exchangeToken();
   }
   let res = await send();
   let retried = false;
   if (res.status === 401) {
-    await exchangeToken();
+    if (oauth) {
+      oauth.invalidate();
+    } else {
+      await exchangeToken();
+    }
     res = await send();
     retried = true;
   }
   const payload = await res.text();
   if (!res.ok) {
-    const hint = retried && res.status === 401 ? ". Still 401 after exchanging DBHAWK_TOKEN for a fresh JWT and retrying once (no further retries) - the token or session was likely revoked, or the user lost MCP access. Reissue the token in DBHawk -> User Profile -> API Token." : "";
+    const hint = !retried || res.status !== 401 ? "" : oauth ? ". Still 401 after refreshing the DBHawk sign-in and retrying once (no further retries) - the sign-in was likely revoked, or the user lost MCP access. The next call starts a new browser sign-in." : ". Still 401 after exchanging DBHAWK_TOKEN for a fresh JWT and retrying once (no further retries) - the token or session was likely revoked, or the user lost MCP access. Reissue the token in DBHawk -> User Profile -> API Token.";
     if (hint) {
-      console.error(`[dbhawk-mcp] ${method} ${path} refused with 401 after re-exchange and one retry.`);
+      console.error(`[dbhawk-mcp] ${method} ${path2} refused with 401 after re-exchange and one retry.`);
     }
     throw new Error(
-      `DBHawk API ${res.status} ${res.statusText} for ${method} ${path}` + (payload ? `: ${payload.slice(0, 500)}` : "") + hint
+      `DBHawk API ${res.status} ${res.statusText} for ${method} ${path2}` + (payload ? `: ${payload.slice(0, 500)}` : "") + hint
     );
   }
   if (opts.text) return payload;
@@ -21658,7 +21955,7 @@ function guard(handler) {
     }
   };
 }
-var server = new McpServer({ name: "dbhawk", version: "0.4.2" });
+var server = new McpServer({ name: "dbhawk", version: "0.5.0" });
 var READ_ONLY = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false };
 var WRITE = { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false };
 var datasourceArg = external_exports.string().optional().describe("Datasource name; defaults to DBHAWK_DEFAULT_DATASOURCE");
@@ -21900,4 +22197,4 @@ server.registerTool(
 );
 var transport = new StdioServerTransport();
 await server.connect(transport);
-console.error(`[dbhawk-mcp] connected. API base: ${API_BASE}`);
+console.error(`[dbhawk-mcp] connected. API base: ${API_BASE} (${oauth ? "DBHawk sign-in, " + oauth.storeFile : "personal token"})`);

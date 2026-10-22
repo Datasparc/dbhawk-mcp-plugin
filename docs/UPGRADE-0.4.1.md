@@ -149,7 +149,8 @@ These setups run `node …/dbhawk/mcp-server/dist/dbhawk-mcp.mjs` from a clone o
 | `list_sessions` → `does not allow` | `active_sessions` is only in the *Destructive / admin* tier by default; an administrator can add it to another tier |
 | `list_sessions` → `…needs access to the session views…` | The datasource's database account cannot read `v$session` / `sys.dm_exec_sessions` / `pg_stat_activity`; grant it, or use the DBHawk Session Manager |
 | `kill_session` → `Session … not found` | The session ended already, or it is not visible to you (DBHawk's session user filter) |
-| `explain_plan` → `…written into explain tables…` | DB2 / SAP HANA: plans are not available over MCP; use the DBHawk SQL editor |
+| `explain_plan` → `…not available over the MCP API…` | SAP HANA / DB2 for i: plans are not available over MCP; use the DBHawk SQL editor |
+| `explain_plan` on DB2 → `…no explain tables…` | A DB2 administrator creates them once: `CALL SYSPROC.SYSINSTALLOBJECTS('EXPLAIN', 'C', CAST(NULL AS VARCHAR(128)), CAST(NULL AS VARCHAR(128)))` |
 | New tools missing after the update | The old process is still running: `/reload-plugins` (Claude Code), fully restart Claude Desktop / the client, or check `npx` is not using a cached 0.3.0 |
 | `get_permissions` → `DBHawk API 404` | The DBHawk server predates MCP tiers. Reads keep working; ask the administrator to upgrade DBHawk |
 | `… does not allow` on a change | Your tier does not include that operation. Ask the administrator for a higher MCP tier |

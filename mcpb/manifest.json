@@ -2,13 +2,13 @@
   "manifest_version": "0.3",
   "name": "dbhawk",
   "display_name": "DBHawk",
-  "version": "0.4.2",
+  "version": "0.5.0",
   "description": "Bridges an AI assistant to DBHawk: list datasources, browse schema, run queries and - when the user's MCP tier allows it - data or schema changes, and use DBHawk AI text-to-SQL over the /api/v2/mcp REST API.",
   "author": {
     "name": "Datasparc"
   },
   "icon": "icon.png",
-  "keywords": ["dbhawk", "mcp", "sql", "database", "hawkai"],
+  "keywords": ["dbhawk", "mcp", "sql", "database", "dbhawk-ai"],
   "server": {
     "type": "node",
     "entry_point": "server/dbhawk-mcp.mjs",
@@ -31,10 +31,11 @@
     },
     "dbhawk_token": {
       "type": "string",
-      "title": "DBHawk API Token",
-      "description": "MCP-scoped personal token (dbh_<id>.<secret>): DBHawk -> User Profile -> API Token. Exchanged for a JWT at runtime; paste the personal token as-is.",
+      "title": "DBHawk API Token (optional)",
+      "description": "Optional. Leave empty to sign in to DBHawk in the browser (password or SSO) on first use - needs DBHawk 7.0.1 with the MCP connector. Or paste an MCP-scoped personal token (dbh_<id>.<secret>): DBHawk -> User Profile -> API Token.",
       "sensitive": true,
-      "required": true
+      "required": false,
+      "default": ""
     },
     "dbhawk_default_datasource": {
       "type": "string",

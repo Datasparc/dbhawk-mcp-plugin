@@ -15,8 +15,12 @@
  *
  * Configuration comes from the environment so no secret is ever hard-coded:
  *   DBHAWK_BASE_URL           e.g. https://demo.dbhawk.example.com   (required, no trailing /api)
- *   DBHAWK_TOKEN              MCP-scoped personal token from UserProfile -> API Token  (required)
+ *   DBHAWK_TOKEN              optional: MCP-scoped personal token from UserProfile -> API Token
  *   DBHAWK_DEFAULT_DATASOURCE optional; used when a tool call omits "datasource"
+ *
+ * Without DBHAWK_TOKEN the bridge signs in to DBHawk itself (oauth.js): on the first tool call it opens the browser
+ * on the DBHawk sign-in - password, LDAP, 2FA or SSO, as on the DBHawk login page - and keeps the refresh token for
+ * the next start. Needs DBHawk 7.0.1 with the MCP connector (OAuth authorization server).
  *
  * DBHAWK_TOKEN is a personal token (dbh_<id>.<secret>), NOT a JWT: the MCP endpoints reject it directly,
  * their filter expects a signed JWT. So the server first exchanges the personal token for a short-lived
@@ -24,12 +28,16 @@
  */
 
 import { randomUUID } from "node:crypto";
+import os from "node:os";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
+import { createOAuthSession } from "./oauth.js";
 
 const RAW_BASE_URL = (process.env.DBHAWK_BASE_URL || "").trim();
-const TOKEN = (process.env.DBHAWK_TOKEN || "").trim();
+// an optional setting left empty may arrive as the unexpanded "${user_config...}" placeholder: treat it as unset
+const unsetIfPlaceholder = (value) => (/^\$\{[^}]*\}$/.test(value) ? "" : value);
+const TOKEN = unsetIfPlaceholder((process.env.DBHAWK_TOKEN || "").trim());
 const DEFAULT_DATASOURCE = (process.env.DBHAWK_DEFAULT_DATASOURCE || "").trim();
 
 /** Print a configuration problem and stop. stderr, not stdout: stdout is the JSON-RPC channel and must stay clean. */
@@ -38,8 +46,8 @@ function configError(message) {
   process.exit(1);
 }
 
-if (!RAW_BASE_URL || !TOKEN) {
-  configError("Missing configuration. Set DBHAWK_BASE_URL and DBHAWK_TOKEN environment variables.");
+if (!RAW_BASE_URL) {
+  configError("Missing configuration. Set the DBHAWK_BASE_URL environment variable (and DBHAWK_TOKEN unless you sign in through the browser).");
 }
 
 let baseUrl;
@@ -66,7 +74,7 @@ if (/\s/.test(TOKEN)) {
   configError("Invalid configuration: DBHAWK_TOKEN must not contain whitespace.");
 }
 if (baseUrl.protocol === "http:" && !["localhost", "127.0.0.1", "[::1]"].includes(baseUrl.hostname)) {
-  console.error("[dbhawk-mcp] Warning: DBHAWK_BASE_URL uses plain http://, so the API token travels unencrypted. Use https://.");
+  console.error("[dbhawk-mcp] Warning: DBHAWK_BASE_URL uses plain http://, so tokens travel unencrypted. Use https://.");
 }
 
 // Normalise: strip a trailing slash. The DispatcherServlet is mapped to /api/* (web.xml), the MCP
@@ -74,6 +82,16 @@ if (baseUrl.protocol === "http:" && !["localhost", "127.0.0.1", "[::1]"].include
 const API_ROOT = RAW_BASE_URL.replace(/\/+$/, "") + "/api";
 const API_BASE = API_ROOT + "/v2/mcp";
 const TOKEN_EXCHANGE_PATH = "/v2/auth/token/exchange";
+
+/** Signed in through the browser (OAuth) when no personal token is configured; null in personal-token mode. */
+const oauth = TOKEN
+  ? null
+  : createOAuthSession({
+      apiRoot: API_ROOT,
+      headers: () => clientHeaders(),
+      log: (message) => console.error(`[dbhawk-mcp] ${message}`),
+      clientName: `DBHawk extension (${os.hostname()})`,
+    });
 
 /**
  * Cached JWT obtained from the personal token. Null until the first call exchanges it, and reset to null
@@ -179,7 +197,8 @@ async function api(method, path, opts = {}) {
   const url = API_BASE + path;
 
   const send = async () => {
-    const headers = { ...clientHeaders(), Authorization: `Bearer ${jwt}`, Accept: "application/json" };
+    const bearer = oauth ? await oauth.accessToken() : jwt;
+    const headers = { ...clientHeaders(), Authorization: `Bearer ${bearer}`, Accept: "application/json" };
     const init = { method, headers };
 
     if (opts.body !== undefined) {
@@ -197,7 +216,7 @@ async function api(method, path, opts = {}) {
     }
   };
 
-  if (jwtNeedsExchange()) {
+  if (!oauth && jwtNeedsExchange()) {
     await exchangeToken();
   }
 
@@ -206,9 +225,15 @@ async function api(method, path, opts = {}) {
   // A JWT known to be expiring is replaced above; a 401 can still come from clock skew, a revoked session or a
   // DBHawk restart, so exchange the personal token for a fresh JWT and retry once. A second 401 is a real
   // authorization failure (the fresh JWT was refused too) and falls through - retrying again would not help.
+  // Signed in through the browser: the access token is refreshed with the stored refresh token instead (and if
+  // that is no longer valid either, the next call starts a new browser sign-in).
   let retried = false;
   if (res.status === 401) {
-    await exchangeToken();
+    if (oauth) {
+      oauth.invalidate();
+    } else {
+      await exchangeToken();
+    }
     res = await send();
     retried = true;
   }
@@ -218,11 +243,14 @@ async function api(method, path, opts = {}) {
   if (!res.ok) {
     // 401/403 that survives the retry: revoked token, wrong scope, or no ACCESS_TO_DATA.
     const hint =
-      retried && res.status === 401
-        ? ". Still 401 after exchanging DBHAWK_TOKEN for a fresh JWT and retrying once (no further retries)" +
-          " - the token or session was likely revoked, or the user lost MCP access. Reissue the token in DBHawk" +
-          " -> User Profile -> API Token."
-        : "";
+      !retried || res.status !== 401
+        ? ""
+        : oauth
+          ? ". Still 401 after refreshing the DBHawk sign-in and retrying once (no further retries)" +
+            " - the sign-in was likely revoked, or the user lost MCP access. The next call starts a new browser sign-in."
+          : ". Still 401 after exchanging DBHAWK_TOKEN for a fresh JWT and retrying once (no further retries)" +
+            " - the token or session was likely revoked, or the user lost MCP access. Reissue the token in DBHawk" +
+            " -> User Profile -> API Token.";
     if (hint) {
       console.error(`[dbhawk-mcp] ${method} ${path} refused with 401 after re-exchange and one retry.`);
     }
@@ -273,7 +301,7 @@ function guard(handler) {
   };
 }
 
-const server = new McpServer({ name: "dbhawk", version: "0.4.2" });
+const server = new McpServer({ name: "dbhawk", version: "0.5.0" });
 
 /**
  * Tool annotations tell the MCP client how risky a tool is. Clients typically let read-only tools run without
@@ -593,4 +621,4 @@ server.registerTool(
 
 const transport = new StdioServerTransport();
 await server.connect(transport);
-console.error(`[dbhawk-mcp] connected. API base: ${API_BASE}`);
+console.error(`[dbhawk-mcp] connected. API base: ${API_BASE} (${oauth ? "DBHawk sign-in, " + oauth.storeFile : "personal token"})`);

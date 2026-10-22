@@ -9,7 +9,14 @@ It's a thin bridge over the existing DBHawk REST surface at `/api/v2/mcp/**`. DB
 every statement is classified and checked against the tier of the user's groups, whatever role the token
 owner has.
 
-**Auth is two steps.** `DBHAWK_TOKEN` is a personal token (`dbh_<id>.<secret>`), **not** a JWT — the
+**Sign in, or a personal token.** Leave `DBHAWK_TOKEN` empty and the server signs in to DBHawk through the
+browser on the first tool call: the DBHawk login page opens (password, LDAP, 2FA or SSO - whatever your DBHawk
+offers), you approve the access once, and the server keeps a refresh token in your user profile for the next
+start (`%APPDATA%\dbhawk-mcp` on Windows, `~/Library/Application Support/dbhawk-mcp` on macOS, `~/.config/dbhawk-mcp`
+on Linux). This needs DBHawk 7.0.1 with the MCP connector; what you may do is decided by your MCP tier, exactly as
+with a token. See [UPGRADE-0.5.0.md](docs/UPGRADE-0.5.0.md).
+
+**With a personal token, auth is two steps.** `DBHAWK_TOKEN` is a personal token (`dbh_<id>.<secret>`), **not** a JWT — the
 MCP endpoints won't accept it directly. On its first call the server exchanges it for a short-lived JWT
 at `POST /api/v2/auth/token/exchange` (sending the personal token in the `X-API-Token` header), caches
 that JWT, and sends it as the `Bearer` for every `/api/v2/mcp/**` call. Shortly before the JWT's `exp` the
@@ -61,8 +68,10 @@ editing). It's the same MCP server, packaged as an `.mcpb` bundle.
 1. Download `dbhawk-<version>.mcpb` from the [Releases page](https://github.com/datasparc/dbhawk-mcp-plugin/releases).
 2. In Claude Desktop: **Settings → Extensions → Advanced settings → Install** and pick the file
    (or just drag the `.mcpb` onto the Extensions window).
-3. Fill in the form — **DBHawk Base URL**, **API Token** (masked; stored in your OS keychain),
-   **Default Datasource** (optional) — and save.
+3. Fill in the form — **DBHawk Base URL**, **API Token** (optional; masked, stored in your OS keychain - leave
+   it empty to sign in through the browser instead), **Default Datasource** (optional) — and save.
+4. With no token, the first DBHawk tool call opens the DBHawk sign-in in your browser: sign in, click **Allow**,
+   and repeat the request if Claude reported that it was waiting for the sign-in.
 
 Claude Desktop does not auto-update file-installed extensions: to upgrade, download the newer
 `.mcpb` and install it again. This is independent of the Claude Code plugin — you don't need the
@@ -102,7 +111,7 @@ The server needs three values (the token owner needs `ACCESS_TO_DATA`):
 | Setting | Required | Meaning |
 |---|---|---|
 | Base URL (`DBHAWK_BASE_URL`) | yes | Base URL of DBHawk, e.g. `https://demo.dbhawk.example.com` (no trailing `/api`) |
-| API Token (`DBHAWK_TOKEN`) | yes | MCP-scoped personal token (`dbh_…`): DBHawk → User Profile → API Token. Exchanged for a JWT at runtime — paste the personal token as-is, not a JWT |
+| API Token (`DBHAWK_TOKEN`) | no | Empty: sign in through the browser on first use (DBHawk 7.0.1+). Otherwise an MCP-scoped personal token (`dbh_…`): DBHawk → User Profile → API Token. Exchanged for a JWT at runtime — paste the personal token as-is, not a JWT |
 | Default Datasource (`DBHAWK_DEFAULT_DATASOURCE`) | no | Datasource used when a tool call omits `datasource` |
 
 ### Claude Code — guided setup dialog (recommended)
@@ -251,7 +260,12 @@ in step with `dbhawk/.claude-plugin/plugin.json` so the plugin and the extension
   refused whatever the MCP tier allows; reads still work.
 - **`confirmationRequired: true, executed: false`** — not an error: the tier asks for confirmation of writes.
   Show the statement to the user and, after they approve it, call `execute_statement` again with `confirm: true`.
-- **`Missing configuration`** on startup — `DBHAWK_BASE_URL` / `DBHAWK_TOKEN` not set.
+- **`Sign in to DBHawk in the browser window that just opened …`** — no token is configured and the browser
+  sign-in has not finished yet. Sign in, click **Allow**, then repeat the request (the URL is in the message if no
+  window appeared). To sign in as someone else, delete the `oauth-*.json` file in the `dbhawk-mcp` folder above.
+- **`This DBHawk server does not support signing in from the extension`** — the DBHawk server predates the MCP
+  connector: configure a personal token.
+- **`Missing configuration`** on startup — `DBHAWK_BASE_URL` not set.
 - **`Invalid configuration`** on startup — `DBHAWK_BASE_URL` is not an `https://` / `http://` URL, contains
   credentials, a query or a trailing `/api`, or `DBHAWK_TOKEN` is a JWT instead of the personal `dbh_…` token.
 - **Server not listed in `/mcp`** — confirm Node ≥ 18 and that `dist/dbhawk-mcp.mjs` exists in the
