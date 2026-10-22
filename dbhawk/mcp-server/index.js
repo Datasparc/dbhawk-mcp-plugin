@@ -301,7 +301,7 @@ function guard(handler) {
   };
 }
 
-const server = new McpServer({ name: "dbhawk", version: "0.5.0" });
+const server = new McpServer({ name: "dbhawk", version: "7.1.0" });
 
 /**
  * Tool annotations tell the MCP client how risky a tool is. Clients typically let read-only tools run without

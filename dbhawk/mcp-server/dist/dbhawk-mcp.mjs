@@ -21955,7 +21955,7 @@ function guard(handler) {
     }
   };
 }
-var server = new McpServer({ name: "dbhawk", version: "0.5.0" });
+var server = new McpServer({ name: "dbhawk", version: "7.1.0" });
 var READ_ONLY = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false };
 var WRITE = { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false };
 var datasourceArg = external_exports.string().optional().describe("Datasource name; defaults to DBHAWK_DEFAULT_DATASOURCE");

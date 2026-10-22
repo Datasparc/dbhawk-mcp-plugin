@@ -14,7 +14,7 @@ browser on the first tool call: the DBHawk login page opens (password, LDAP, 2FA
 offers), you approve the access once, and the server keeps a refresh token in your user profile for the next
 start (`%APPDATA%\dbhawk-mcp` on Windows, `~/Library/Application Support/dbhawk-mcp` on macOS, `~/.config/dbhawk-mcp`
 on Linux). This needs DBHawk 7.0.1 with the MCP connector; what you may do is decided by your MCP tier, exactly as
-with a token. See [UPGRADE-0.5.0.md](docs/UPGRADE-0.5.0.md).
+with a token. See [UPGRADE-7.1.0.md](docs/UPGRADE-7.1.0.md).
 
 **With a personal token, auth is two steps.** `DBHAWK_TOKEN` is a personal token (`dbh_<id>.<secret>`), **not** a JWT — the
 MCP endpoints won't accept it directly. On its first call the server exchanges it for a short-lived JWT

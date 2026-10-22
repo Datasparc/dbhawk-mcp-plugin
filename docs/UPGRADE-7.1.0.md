@@ -1,8 +1,11 @@
-# Upgrading the DBHawk MCP plugin to 0.5.0
+# Upgrading the DBHawk MCP plugin to 7.1.0
 
-Version 0.5.0 of the DBHawk MCP server (Claude Code plugin `dbhawk`, Claude Desktop extension `dbhawk-0.5.0.mcpb`,
+Version 7.1.0 of the DBHawk MCP server (Claude Code plugin `dbhawk`, Claude Desktop extension `dbhawk-7.1.0.mcpb`,
 npm package `@dbhawk/mcp`) can **sign in to DBHawk through the browser**, so no personal MCP token has to be
 generated, pasted or rotated. Tools are unchanged; a configured token keeps working exactly as before.
+
+**Version numbers now follow DBHawk.** The plugin jumps from 0.5.0 to 7.1.0 so that its version matches the
+DBHawk release it is built for. 7.1.0 has the same features as 0.5.0; only the number changed.
 
 ## How it works
 
@@ -33,25 +36,25 @@ re-validation window (`apiTokenSsoMaxDays`). The server then simply opens the br
 
 ## Upgrade
 
-- **Claude Desktop:** install `dbhawk-0.5.0.mcpb` (Settings -> Extensions -> Advanced settings -> Install), then
+- **Claude Desktop:** install `dbhawk-7.1.0.mcpb` (Settings -> Extensions -> Advanced settings -> Install), then
   clear the **API Token** field to switch to browser sign-in, or keep it to stay on the token.
 - **Claude Code:** `claude plugin update dbhawk@dbhawk-marketplace`; the token is now optional in the plugin
   settings.
-- **npx / manual config:** `@dbhawk/mcp@0.5.0`; drop `DBHAWK_TOKEN` from the environment to use browser sign-in.
+- **npx / manual config:** `@dbhawk/mcp@7.1.0`; drop `DBHAWK_TOKEN` from the environment to use browser sign-in.
 
 Settings for special cases: `DBHAWK_BROWSER=none` only prints the sign-in URL (headless hosts), any other value is
 the command used to open it; `DBHAWK_OAUTH_STORE_DIR` moves the refresh token file.
 
 ---
 
-## For maintainers - releasing 0.5.0
+## For maintainers - releasing 7.1.0
 
-All versions read `0.5.0` (CI checks them).
+All versions read `7.1.0` (CI checks them).
 
 ```bash
 cd dbhawk/mcp-server && npm ci && npm test && cd ../..         # builds dist/ and runs the tests
 cp dbhawk/mcp-server/dist/dbhawk-mcp.mjs mcpb/server/dbhawk-mcp.mjs
 npx @anthropic-ai/mcpb validate mcpb/manifest.json
-npx @anthropic-ai/mcpb pack mcpb dbhawk-0.5.0.mcpb
-gh release create v0.5.0 dbhawk-0.5.0.mcpb --title "DBHawk 0.5.0" --notes "Browser sign-in to DBHawk (no token needed)"
+npx @anthropic-ai/mcpb pack mcpb dbhawk-7.1.0.mcpb
+gh release create v7.1.0 dbhawk-7.1.0.mcpb --title "DBHawk 7.1.0" --notes "Browser sign-in to DBHawk (no token needed)"
 ```
