@@ -33,6 +33,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import { createOAuthSession } from "./oauth.js";
+import { fetchWithRetry } from "./net.js";
 
 const RAW_BASE_URL = (process.env.DBHAWK_BASE_URL || "").trim();
 // an optional setting left empty may arrive as the unexpanded "${user_config...}" placeholder: treat it as unset
@@ -146,15 +147,13 @@ const jwtNeedsExchange = () => !jwt || (jwtExpiresAt > 0 && Date.now() >= jwtExp
 async function exchangeToken() {
   const url = API_ROOT + TOKEN_EXCHANGE_PATH;
 
-  let res;
-  try {
-    res = await fetch(url, {
-      method: "POST",
-      headers: { ...clientHeaders(), "X-API-Token": TOKEN, Accept: "application/json" },
-    });
-  } catch (e) {
-    throw new Error(`Network error calling POST ${url}: ${e.message}`);
-  }
+  // issuing another JWT changes nothing, so the exchange is retried like a read
+  const res = await fetchWithRetry(
+    "POST",
+    url,
+    { method: "POST", headers: { ...clientHeaders(), "X-API-Token": TOKEN, Accept: "application/json" } },
+    true
+  );
 
   const payload = await res.text();
 
@@ -192,9 +191,12 @@ async function exchangeToken() {
  * @param {object} [opts]
  * @param {object} [opts.body]  JSON request body
  * @param {boolean} [opts.text] when true, return the response body as text (for /format-query)
+ * @param {boolean} [opts.idempotent] the call cannot change anything, so a lost connection is retried
+ *                                    (default: true for GET, false otherwise)
  */
 async function api(method, path, opts = {}) {
   const url = API_BASE + path;
+  const idempotent = opts.idempotent ?? method === "GET";
 
   const send = async () => {
     const bearer = oauth ? await oauth.accessToken() : jwt;
@@ -209,11 +211,7 @@ async function api(method, path, opts = {}) {
       headers.Accept = "text/plain";
     }
 
-    try {
-      return await fetch(url, init);
-    } catch (e) {
-      throw new Error(`Network error calling ${method} ${url}: ${e.message}`);
-    }
+    return fetchWithRetry(method, url, init, idempotent);
   };
 
   if (!oauth && jwtNeedsExchange()) {
@@ -456,7 +454,8 @@ server.registerTool(
     // declared read-only, so the client may run it without asking the user.
     const body = { query, readOnly: true };
     if (maxRows !== undefined) body.maxRows = maxRows;
-    return ok(await api("POST", `/datasources/${seg(resolveDatasource(datasource))}/query`, { body }));
+    // readOnly: DBHawk refuses anything but a read, so a lost connection can be retried
+    return ok(await api("POST", `/datasources/${seg(resolveDatasource(datasource))}/query`, { body, idempotent: true }));
   })
 );
 
@@ -479,7 +478,7 @@ server.registerTool(
     annotations: READ_ONLY,
   },
   guard(async ({ datasource, query }) =>
-    ok(await api("POST", `/datasources/${seg(resolveDatasource(datasource))}/explain`, { body: { query } }))
+    ok(await api("POST", `/datasources/${seg(resolveDatasource(datasource))}/explain`, { body: { query }, idempotent: true }))
   )
 );
 
@@ -576,7 +575,7 @@ server.registerTool(
   guard(async ({ datasource, prompt, sessionId }) => {
     const body = { prompt };
     if (sessionId !== undefined) body.sessionId = sessionId;
-    return ok(await api("POST", `/datasources/${seg(resolveDatasource(datasource))}/ai/ask`, { body }));
+    return ok(await api("POST", `/datasources/${seg(resolveDatasource(datasource))}/ai/ask`, { body, idempotent: true }));
   })
 );
 
@@ -595,7 +594,7 @@ server.registerTool(
   guard(async ({ datasource, sql, schema }) => {
     const body = { sql };
     if (schema !== undefined) body.schema = schema;
-    return ok(await api("POST", `/datasources/${seg(resolveDatasource(datasource))}/ai/optimize`, { body }));
+    return ok(await api("POST", `/datasources/${seg(resolveDatasource(datasource))}/ai/optimize`, { body, idempotent: true }));
   })
 );
 
@@ -613,7 +612,7 @@ server.registerTool(
   guard(async ({ query, dbDialect }) => {
     const body = { query };
     if (dbDialect !== undefined) body.dbDialect = dbDialect;
-    return ok(await api("POST", "/format-query", { body, text: true }));
+    return ok(await api("POST", "/format-query", { body, text: true, idempotent: true }));
   })
 );
 

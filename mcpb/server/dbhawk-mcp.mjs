@@ -21507,6 +21507,50 @@ import fs from "node:fs";
 import http from "node:http";
 import os from "node:os";
 import path from "node:path";
+
+// net.js
+var RETRY_DELAYS_MS = (process.env.DBHAWK_RETRY_DELAYS_MS ?? "1000,3000,8000").split(",").map((s) => s.trim()).filter((s) => s !== "").map(Number).filter((n) => Number.isFinite(n) && n >= 0);
+var NOT_SENT_CODES = /* @__PURE__ */ new Set([
+  "ECONNREFUSED",
+  "ENOTFOUND",
+  "EAI_AGAIN",
+  "EHOSTUNREACH",
+  "ENETUNREACH",
+  "UND_ERR_CONNECT_TIMEOUT"
+]);
+function networkCause(e) {
+  let cause = e && e.cause;
+  if (cause && !cause.code && Array.isArray(cause.errors) && cause.errors.length) cause = cause.errors[0];
+  return { code: cause && cause.code || "", message: cause && cause.message || "" };
+}
+function describeNetworkError(e) {
+  const { code, message } = networkCause(e);
+  const detail = [code, message && message !== code ? message : ""].filter(Boolean).join(": ");
+  return detail ? `${e.message} (${detail})` : e.message;
+}
+var sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+async function fetchWithRetry(method, url, init, idempotent) {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await fetch(url, init);
+    } catch (e) {
+      const notSent = NOT_SENT_CODES.has(networkCause(e).code);
+      const detail = describeNetworkError(e);
+      if (attempt >= RETRY_DELAYS_MS.length || !(idempotent || notSent)) {
+        const attempts = attempt > 0 ? ` (${attempt + 1} attempts)` : "";
+        const maybeRan = idempotent || notSent ? "" : ". The connection was lost after the request was sent, so DBHawk may or may not have executed it; it was not retried automatically. Check the data (or DBHawk's SQL log) before running it again.";
+        throw new Error(`Network error calling ${method} ${url}: ${detail}${attempts}${maybeRan}`);
+      }
+      const delay = RETRY_DELAYS_MS[attempt];
+      console.error(
+        `[dbhawk-mcp] ${method} ${url}: ${detail} - no response, retrying in ${delay} ms (attempt ${attempt + 2} of ${RETRY_DELAYS_MS.length + 1})`
+      );
+      await sleep(delay);
+    }
+  }
+}
+
+// oauth.js
 var DEFAULT_CALL_WAIT_MS = 45e3;
 var DEFAULT_SIGN_IN_TTL_MS = 10 * 6e4;
 var EXPIRY_SKEW_MS = 3e4;
@@ -21595,7 +21639,7 @@ function createOAuthSession(opts) {
         body: new URLSearchParams(form).toString()
       });
     } catch (e) {
-      throw new Error(`Network error calling POST ${url}: ${e.message}`);
+      throw new Error(`Network error calling POST ${url}: ${describeNetworkError(e)}`);
     }
     const text = await res.text();
     let body = {};
@@ -21633,7 +21677,7 @@ function createOAuthSession(opts) {
         })
       });
     } catch (e) {
-      throw new Error(`Network error calling POST ${url}: ${e.message}`);
+      throw new Error(`Network error calling POST ${url}: ${describeNetworkError(e)}`);
     }
     const text = await res.text();
     if (res.status === 404 || res.status === 405) {
@@ -21853,15 +21897,12 @@ function jwtExpiry(token) {
 var jwtNeedsExchange = () => !jwt || jwtExpiresAt > 0 && Date.now() >= jwtExpiresAt - JWT_EXPIRY_SKEW_MS;
 async function exchangeToken() {
   const url = API_ROOT + TOKEN_EXCHANGE_PATH;
-  let res;
-  try {
-    res = await fetch(url, {
-      method: "POST",
-      headers: { ...clientHeaders(), "X-API-Token": TOKEN, Accept: "application/json" }
-    });
-  } catch (e) {
-    throw new Error(`Network error calling POST ${url}: ${e.message}`);
-  }
+  const res = await fetchWithRetry(
+    "POST",
+    url,
+    { method: "POST", headers: { ...clientHeaders(), "X-API-Token": TOKEN, Accept: "application/json" } },
+    true
+  );
   const payload = await res.text();
   if (!res.ok) {
     throw new Error(
@@ -21883,6 +21924,7 @@ async function exchangeToken() {
 }
 async function api(method, path2, opts = {}) {
   const url = API_BASE + path2;
+  const idempotent = opts.idempotent ?? method === "GET";
   const send = async () => {
     const bearer = oauth ? await oauth.accessToken() : jwt;
     const headers = { ...clientHeaders(), Authorization: `Bearer ${bearer}`, Accept: "application/json" };
@@ -21894,11 +21936,7 @@ async function api(method, path2, opts = {}) {
     if (opts.text) {
       headers.Accept = "text/plain";
     }
-    try {
-      return await fetch(url, init);
-    } catch (e) {
-      throw new Error(`Network error calling ${method} ${url}: ${e.message}`);
-    }
+    return fetchWithRetry(method, url, init, idempotent);
   };
   if (!oauth && jwtNeedsExchange()) {
     await exchangeToken();
@@ -22076,7 +22114,7 @@ server.registerTool(
   guard(async ({ datasource, query, maxRows }) => {
     const body = { query, readOnly: true };
     if (maxRows !== void 0) body.maxRows = maxRows;
-    return ok(await api("POST", `/datasources/${seg(resolveDatasource(datasource))}/query`, { body }));
+    return ok(await api("POST", `/datasources/${seg(resolveDatasource(datasource))}/query`, { body, idempotent: true }));
   })
 );
 server.registerTool(
@@ -22091,7 +22129,7 @@ server.registerTool(
     annotations: READ_ONLY
   },
   guard(
-    async ({ datasource, query }) => ok(await api("POST", `/datasources/${seg(resolveDatasource(datasource))}/explain`, { body: { query } }))
+    async ({ datasource, query }) => ok(await api("POST", `/datasources/${seg(resolveDatasource(datasource))}/explain`, { body: { query }, idempotent: true }))
   )
 );
 server.registerTool(
@@ -22157,7 +22195,7 @@ server.registerTool(
   guard(async ({ datasource, prompt, sessionId }) => {
     const body = { prompt };
     if (sessionId !== void 0) body.sessionId = sessionId;
-    return ok(await api("POST", `/datasources/${seg(resolveDatasource(datasource))}/ai/ask`, { body }));
+    return ok(await api("POST", `/datasources/${seg(resolveDatasource(datasource))}/ai/ask`, { body, idempotent: true }));
   })
 );
 server.registerTool(
@@ -22175,7 +22213,7 @@ server.registerTool(
   guard(async ({ datasource, sql, schema }) => {
     const body = { sql };
     if (schema !== void 0) body.schema = schema;
-    return ok(await api("POST", `/datasources/${seg(resolveDatasource(datasource))}/ai/optimize`, { body }));
+    return ok(await api("POST", `/datasources/${seg(resolveDatasource(datasource))}/ai/optimize`, { body, idempotent: true }));
   })
 );
 server.registerTool(
@@ -22192,7 +22230,7 @@ server.registerTool(
   guard(async ({ query, dbDialect }) => {
     const body = { query };
     if (dbDialect !== void 0) body.dbDialect = dbDialect;
-    return ok(await api("POST", "/format-query", { body, text: true }));
+    return ok(await api("POST", "/format-query", { body, text: true, idempotent: true }));
   })
 );
 var transport = new StdioServerTransport();

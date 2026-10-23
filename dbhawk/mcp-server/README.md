@@ -17,6 +17,13 @@ All of DBHawk's access control and column masking apply. What the assistant may 
 | `DBHAWK_BASE_URL` | yes | Your DBHawk URL, e.g. `https://dbhawk.example.com` (no trailing `/api`) |
 | `DBHAWK_TOKEN` | no | Your personal MCP token (`dbh_…`). Leave it out to sign in to DBHawk through the browser on first use (DBHawk 7.0.1+) |
 | `DBHAWK_DEFAULT_DATASOURCE` | no | Datasource to use when a request doesn't name one |
+| `DBHAWK_RETRY_DELAYS_MS` | no | Waits before retrying a call that got no HTTP response, comma separated (default `1000,3000,8000`; empty = no retries) |
+
+A call that gets no HTTP response at all (connection reset or refused, DBHawk restarting) is retried after those
+waits when it cannot change anything: reads, `run_query`, `explain_plan`, the AI tools, `format_sql`.
+`execute_statement` and `kill_session` are retried only when the connection was never made; otherwise the error says
+the statement may have run, so it is checked instead of sent twice. The error names the network cause (for example
+`fetch failed (ECONNRESET: read ECONNRESET)`).
 
 Every request also tells DBHawk which agent is calling, for its API log: `X-MCP-Client` (the MCP client's
 `name/version` from the MCP handshake, e.g. `claude-code/2.1.4`) and `X-MCP-Session` (a random id per server

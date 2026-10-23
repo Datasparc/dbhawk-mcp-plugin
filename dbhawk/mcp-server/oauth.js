@@ -16,6 +16,7 @@ import fs from "node:fs";
 import http from "node:http";
 import os from "node:os";
 import path from "node:path";
+import { describeNetworkError } from "./net.js";
 
 /** How long a tool call waits for the browser sign-in before it answers "finish signing in, then retry". */
 const DEFAULT_CALL_WAIT_MS = 45_000;
@@ -131,7 +132,7 @@ export function createOAuthSession(opts) {
         body: new URLSearchParams(form).toString(),
       });
     } catch (e) {
-      throw new Error(`Network error calling POST ${url}: ${e.message}`);
+      throw new Error(`Network error calling POST ${url}: ${describeNetworkError(e)}`);
     }
     const text = await res.text();
     let body = {};
@@ -173,7 +174,7 @@ export function createOAuthSession(opts) {
         }),
       });
     } catch (e) {
-      throw new Error(`Network error calling POST ${url}: ${e.message}`);
+      throw new Error(`Network error calling POST ${url}: ${describeNetworkError(e)}`);
     }
     const text = await res.text();
     if (res.status === 404 || res.status === 405) {

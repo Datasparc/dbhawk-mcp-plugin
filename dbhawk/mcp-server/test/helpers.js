@@ -16,7 +16,8 @@ export const MCP = "/api/v2/mcp";
 /**
  * Starts a fake DBHawk. Every request is recorded in `calls`. The token exchange answers { jwt: "jwt-<n>" }
  * (n counts exchanges) unless `exchange` overrides it; every other request goes to `handler(call)`, which returns
- * { status?, json?, text? } - the default is 200 { ok: true }.
+ * { status?, json?, text? } - the default is 200 { ok: true } - or { drop: true } to close the connection without
+ * answering (what a client sees when DBHawk restarts or a proxy resets the connection).
  *
  * @param {object}   [opts]
  * @param {function} [opts.handler]   (call) => response for /api/v2/mcp requests
@@ -46,6 +47,11 @@ export async function startFakeDbhawk(opts = {}) {
       response = opts.exchange ? opts.exchange(call, exchanges) : { json: { jwt: `jwt-${exchanges}` } };
     } else {
       response = (opts.handler && opts.handler(call)) || { json: { ok: true } };
+    }
+
+    if (response.drop) {
+      req.socket.destroy();
+      return;
     }
 
     res.statusCode = response.status || 200;
