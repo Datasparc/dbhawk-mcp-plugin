@@ -1688,11 +1688,11 @@ var require_defaults = __commonJS({
       }
     }
     exports.assignDefaults = assignDefaults;
-    function assignDefault(it, prop, defaultValue) {
+    function assignDefault(it, prop2, defaultValue) {
       const { gen, compositeRule, data, opts } = it;
       if (defaultValue === void 0)
         return;
-      const childData = (0, codegen_1._)`${data}${(0, codegen_1.getProperty)(prop)}`;
+      const childData = (0, codegen_1._)`${data}${(0, codegen_1.getProperty)(prop2)}`;
       if (compositeRule) {
         (0, util_1.checkStrictMode)(it, `default is ignored for: ${childData}`);
         return;
@@ -1716,16 +1716,16 @@ var require_code2 = __commonJS({
     var util_1 = require_util();
     var names_1 = require_names();
     var util_2 = require_util();
-    function checkReportMissingProp(cxt, prop) {
+    function checkReportMissingProp(cxt, prop2) {
       const { gen, data, it } = cxt;
-      gen.if(noPropertyInData(gen, data, prop, it.opts.ownProperties), () => {
-        cxt.setParams({ missingProperty: (0, codegen_1._)`${prop}` }, true);
+      gen.if(noPropertyInData(gen, data, prop2, it.opts.ownProperties), () => {
+        cxt.setParams({ missingProperty: (0, codegen_1._)`${prop2}` }, true);
         cxt.error();
       });
     }
     exports.checkReportMissingProp = checkReportMissingProp;
     function checkMissingProp({ gen, data, it: { opts } }, properties, missing) {
-      return (0, codegen_1.or)(...properties.map((prop) => (0, codegen_1.and)(noPropertyInData(gen, data, prop, opts.ownProperties), (0, codegen_1._)`${missing} = ${prop}`)));
+      return (0, codegen_1.or)(...properties.map((prop2) => (0, codegen_1.and)(noPropertyInData(gen, data, prop2, opts.ownProperties), (0, codegen_1._)`${missing} = ${prop2}`)));
     }
     exports.checkMissingProp = checkMissingProp;
     function reportMissingProp(cxt, missing) {
@@ -2147,8 +2147,8 @@ var require_json_schema_traverse = __commonJS({
             }
           } else if (key in traverse.propsKeywords) {
             if (sch && typeof sch == "object") {
-              for (var prop in sch)
-                _traverse(opts, pre, post, sch[prop], jsonPtr + "/" + key + "/" + escapeJsonPtr(prop), rootSchema, jsonPtr, key, schema, prop);
+              for (var prop2 in sch)
+                _traverse(opts, pre, post, sch[prop2], jsonPtr + "/" + key + "/" + escapeJsonPtr(prop2), rootSchema, jsonPtr, key, schema, prop2);
             }
           } else if (key in traverse.keywords || opts.allKeys && !(key in traverse.skipKeywords)) {
             _traverse(opts, pre, post, sch, jsonPtr + "/" + key, rootSchema, jsonPtr, key, schema);
@@ -4625,7 +4625,7 @@ var require_core = __commonJS({
       errorsText(errors = this.errors, { separator = ", ", dataVar = "data" } = {}) {
         if (!errors || errors.length === 0)
           return "No errors";
-        return errors.map((e) => `${dataVar}${e.instancePath} ${e.message}`).reduce((text, msg) => text + separator + msg);
+        return errors.map((e) => `${dataVar}${e.instancePath} ${e.message}`).reduce((text3, msg) => text3 + separator + msg);
       }
       $dataMetaSchema(metaSchema, keywordsJsonPointers) {
         const rules = this.RULES.all;
@@ -5229,8 +5229,8 @@ var require_required = __commonJS({
           if (useLoop || $data) {
             cxt.block$data(codegen_1.nil, loopAllRequired);
           } else {
-            for (const prop of schema) {
-              (0, code_1.checkReportMissingProp)(cxt, prop);
+            for (const prop2 of schema) {
+              (0, code_1.checkReportMissingProp)(cxt, prop2);
             }
           }
         }
@@ -5247,9 +5247,9 @@ var require_required = __commonJS({
           }
         }
         function loopAllRequired() {
-          gen.forOf("prop", schemaCode, (prop) => {
-            cxt.setParams({ missingProperty: prop });
-            gen.if((0, code_1.noPropertyInData)(gen, data, prop, opts.ownProperties), () => cxt.error());
+          gen.forOf("prop", schemaCode, (prop2) => {
+            cxt.setParams({ missingProperty: prop2 });
+            gen.if((0, code_1.noPropertyInData)(gen, data, prop2, opts.ownProperties), () => cxt.error());
           });
         }
         function loopUntilMissing(missing, valid) {
@@ -5794,13 +5794,13 @@ var require_dependencies = __commonJS({
       if (Object.keys(propertyDeps).length === 0)
         return;
       const missing = gen.let("missing");
-      for (const prop in propertyDeps) {
-        const deps = propertyDeps[prop];
+      for (const prop2 in propertyDeps) {
+        const deps = propertyDeps[prop2];
         if (deps.length === 0)
           continue;
-        const hasProperty = (0, code_1.propertyInData)(gen, data, prop, it.opts.ownProperties);
+        const hasProperty = (0, code_1.propertyInData)(gen, data, prop2, it.opts.ownProperties);
         cxt.setParams({
-          property: prop,
+          property: prop2,
           depsCount: deps.length,
           deps: deps.join(", ")
         });
@@ -5821,13 +5821,13 @@ var require_dependencies = __commonJS({
     function validateSchemaDeps(cxt, schemaDeps = cxt.schema) {
       const { gen, data, keyword, it } = cxt;
       const valid = gen.name("valid");
-      for (const prop in schemaDeps) {
-        if ((0, util_1.alwaysValidSchema)(it, schemaDeps[prop]))
+      for (const prop2 in schemaDeps) {
+        if ((0, util_1.alwaysValidSchema)(it, schemaDeps[prop2]))
           continue;
         gen.if(
-          (0, code_1.propertyInData)(gen, data, prop, it.opts.ownProperties),
+          (0, code_1.propertyInData)(gen, data, prop2, it.opts.ownProperties),
           () => {
-            const schCxt = cxt.subschema({ keyword, schemaProp: prop }, valid);
+            const schCxt = cxt.subschema({ keyword, schemaProp: prop2 }, valid);
             cxt.mergeValidEvaluated(schCxt, valid);
           },
           () => gen.var(valid, true)
@@ -6009,8 +6009,8 @@ var require_properties = __commonJS({
           additionalProperties_1.default.code(new validate_1.KeywordCxt(it, additionalProperties_1.default, "additionalProperties"));
         }
         const allProps = (0, code_1.allSchemaProperties)(schema);
-        for (const prop of allProps) {
-          it.definedProperties.add(prop);
+        for (const prop2 of allProps) {
+          it.definedProperties.add(prop2);
         }
         if (it.opts.unevaluated && allProps.length && it.props !== true) {
           it.props = util_1.mergeEvaluated.props(gen, (0, util_1.toHash)(allProps), it.props);
@@ -6019,27 +6019,27 @@ var require_properties = __commonJS({
         if (properties.length === 0)
           return;
         const valid = gen.name("valid");
-        for (const prop of properties) {
-          if (hasDefault(prop)) {
-            applyPropertySchema(prop);
+        for (const prop2 of properties) {
+          if (hasDefault(prop2)) {
+            applyPropertySchema(prop2);
           } else {
-            gen.if((0, code_1.propertyInData)(gen, data, prop, it.opts.ownProperties));
-            applyPropertySchema(prop);
+            gen.if((0, code_1.propertyInData)(gen, data, prop2, it.opts.ownProperties));
+            applyPropertySchema(prop2);
             if (!it.allErrors)
               gen.else().var(valid, true);
             gen.endIf();
           }
-          cxt.it.definedProperties.add(prop);
+          cxt.it.definedProperties.add(prop2);
           cxt.ok(valid);
         }
-        function hasDefault(prop) {
-          return it.opts.useDefaults && !it.compositeRule && schema[prop].default !== void 0;
+        function hasDefault(prop2) {
+          return it.opts.useDefaults && !it.compositeRule && schema[prop2].default !== void 0;
         }
-        function applyPropertySchema(prop) {
+        function applyPropertySchema(prop2) {
           cxt.subschema({
             keyword: "properties",
-            schemaProp: prop,
-            dataProp: prop
+            schemaProp: prop2,
+            dataProp: prop2
           }, valid);
         }
       }
@@ -6090,9 +6090,9 @@ var require_patternProperties = __commonJS({
           }
         }
         function checkMatchingProperties(pat) {
-          for (const prop in checkProperties) {
-            if (new RegExp(pat).test(prop)) {
-              (0, util_1.checkStrictMode)(it, `property ${prop} matches pattern ${pat} (use allowMatchingProperties)`);
+          for (const prop2 in checkProperties) {
+            if (new RegExp(pat).test(prop2)) {
+              (0, util_1.checkStrictMode)(it, `property ${prop2} matches pattern ${pat} (use allowMatchingProperties)`);
             }
           }
         }
@@ -11431,8 +11431,8 @@ function defineLazy(object3, key, getter) {
     configurable: true
   });
 }
-function assignProp(target, prop, value) {
-  Object.defineProperty(target, prop, {
+function assignProp(target, prop2, value) {
+  Object.defineProperty(target, prop2, {
     value,
     writable: true,
     enumerable: true,
@@ -11580,33 +11580,33 @@ function normalizeParams(_params) {
 function createTransparentProxy(getter) {
   let target;
   return new Proxy({}, {
-    get(_, prop, receiver) {
+    get(_, prop2, receiver) {
       target ?? (target = getter());
-      return Reflect.get(target, prop, receiver);
+      return Reflect.get(target, prop2, receiver);
     },
-    set(_, prop, value, receiver) {
+    set(_, prop2, value, receiver) {
       target ?? (target = getter());
-      return Reflect.set(target, prop, value, receiver);
+      return Reflect.set(target, prop2, value, receiver);
     },
-    has(_, prop) {
+    has(_, prop2) {
       target ?? (target = getter());
-      return Reflect.has(target, prop);
+      return Reflect.has(target, prop2);
     },
-    deleteProperty(_, prop) {
+    deleteProperty(_, prop2) {
       target ?? (target = getter());
-      return Reflect.deleteProperty(target, prop);
+      return Reflect.deleteProperty(target, prop2);
     },
     ownKeys(_) {
       target ?? (target = getter());
       return Reflect.ownKeys(target);
     },
-    getOwnPropertyDescriptor(_, prop) {
+    getOwnPropertyDescriptor(_, prop2) {
       target ?? (target = getter());
-      return Reflect.getOwnPropertyDescriptor(target, prop);
+      return Reflect.getOwnPropertyDescriptor(target, prop2);
     },
-    defineProperty(_, prop, descriptor) {
+    defineProperty(_, prop2, descriptor) {
       target ?? (target = getter());
-      return Reflect.defineProperty(target, prop, descriptor);
+      return Reflect.defineProperty(target, prop2, descriptor);
     }
   });
 }
@@ -14237,8 +14237,8 @@ function _overwrite(tx) {
     tx
   });
 }
-function _normalize(form) {
-  return _overwrite((input) => input.normalize(form));
+function _normalize(form2) {
+  return _overwrite((input) => input.normalize(form2));
 }
 function _trim() {
   return _overwrite((input) => input.trim());
@@ -21630,23 +21630,23 @@ function createOAuthSession(opts) {
     } catch {
     }
   }
-  async function post(url, form) {
+  async function post(url, form2) {
     let res;
     try {
       res = await fetch(url, {
         method: "POST",
         headers: { ...extraHeaders(), Accept: "application/json", "Content-Type": "application/x-www-form-urlencoded" },
-        body: new URLSearchParams(form).toString()
+        body: new URLSearchParams(form2).toString()
       });
     } catch (e) {
       throw new Error(`Network error calling POST ${url}: ${describeNetworkError(e)}`);
     }
-    const text = await res.text();
+    const text3 = await res.text();
     let body = {};
     try {
-      body = text ? JSON.parse(text) : {};
+      body = text3 ? JSON.parse(text3) : {};
     } catch {
-      body = { error: "invalid_response", error_description: text.slice(0, 300) };
+      body = { error: "invalid_response", error_description: text3.slice(0, 300) };
     }
     return { status: res.status, ok: res.ok, body };
   }
@@ -21679,18 +21679,18 @@ function createOAuthSession(opts) {
     } catch (e) {
       throw new Error(`Network error calling POST ${url}: ${describeNetworkError(e)}`);
     }
-    const text = await res.text();
+    const text3 = await res.text();
     if (res.status === 404 || res.status === 405) {
       throw new SignInError("This DBHawk server does not support signing in from the extension (it needs DBHawk 7.0.1 with the MCP connector). Configure a personal MCP token (DBHawk -> User Profile -> API Token) instead.");
     }
     let body;
     try {
-      body = JSON.parse(text);
+      body = JSON.parse(text3);
     } catch {
       body = {};
     }
     if (!res.ok || !body.client_id) {
-      throw new Error(`DBHawk client registration failed: ${res.status}${text ? ": " + text.slice(0, 300) : ""}`);
+      throw new Error(`DBHawk client registration failed: ${res.status}${text3 ? ": " + text3.slice(0, 300) : ""}`);
     }
     writeStore({ ...store, clientId: body.client_id, refreshToken: void 0 });
     return body.client_id;
@@ -21828,10 +21828,1342 @@ function page(title, message) {
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${esc2(title)}</title></head><body style="font-family:sans-serif;margin:64px auto;max-width:480px"><h2>${esc2(title)}</h2><p>${esc2(message)}</p></body></html>`;
 }
 
+// jobs-wizard.js
+var WIZARD_TOOLS = /* @__PURE__ */ new Set(["create_job", "update_job", "delete_job", "resume_job", "run_job", "interrupt_job"]);
+var EVERY_HOUR = "Every hour";
+var EVERY_DAY = "Every day";
+var WEEKDAYS = "Every weekday (Mon-Fri)";
+var MONDAYS = "Every Monday";
+var MONTHLY = "On the 1st of every month";
+var CUSTOM = "Custom cron expression";
+var SCHEDULES = [EVERY_DAY, WEEKDAYS, MONDAYS, MONTHLY, EVERY_HOUR, CUSTOM];
+var FORMATS = ["csv", "txt", "html", "pdf", "xlsx", "json", "parquet"];
+var COMPRESSIONS = ["none", "zip", "gz"];
+var TO_FILE_MANAGER = "DBHawk File Manager";
+var BY_EMAIL = "E-mail";
+var DELIVERIES = [TO_FILE_MANAGER, BY_EMAIL];
+var isEmail = (args) => blank(args.delivery) ? !blank(args.emailTo) : /mail/i.test(String(args.delivery));
+var ATTEMPTS = 3;
+var CONFIRM = {
+  create_job: ["Create this job?", "Yes, create the job", "created"],
+  update_job: ["Save these changes to the job?", "Yes, save the changes", "changed"],
+  delete_job: ["Delete this job? It is unscheduled and removed for good.", "Yes, delete the job", "deleted"],
+  resume_job: ["Resume this job? Its SQL runs again on schedule.", "Yes, resume the job", "resumed"],
+  run_job: ["Run this job now?", "Yes, run it now", "run"],
+  interrupt_job: ["Interrupt the running job?", "Yes, interrupt it", "interrupted"]
+};
+var blank = (v) => v === void 0 || v === null || String(v).trim() === "";
+var text = (v) => blank(v) ? void 0 : String(v).trim();
+var valueOr = (v, fallback) => text(v) ?? fallback;
+var bool = (v) => v === void 0 || v === null ? void 0 : typeof v === "boolean" ? v : String(v).trim() === "true";
+function cronOf(schedule, time3, custom3) {
+  if (schedule === CUSTOM) {
+    if (blank(custom3)) throw new Error(`enter a cron expression for "${CUSTOM}".`);
+    return custom3.trim();
+  }
+  const m = /^\s*(\d{1,2})[:.](\d{2})\s*$/.exec(time3 || "");
+  if (!m || +m[1] > 23 || +m[2] > 59) throw new Error("the time must be HH:mm, e.g. 08:00.");
+  const hour = +m[1];
+  const minute = +m[2];
+  switch (schedule) {
+    case EVERY_HOUR:
+      return `0 ${minute} * * * ?`;
+    case WEEKDAYS:
+      return `0 ${minute} ${hour} ? * MON-FRI`;
+    case MONDAYS:
+      return `0 ${minute} ${hour} ? * MON`;
+    case MONTHLY:
+      return `0 ${minute} ${hour} 1 * ?`;
+    default:
+      return `0 ${minute} ${hour} * * ?`;
+  }
+}
+function form(fields) {
+  const properties = {};
+  const required2 = [];
+  for (const field of fields) {
+    if (!field) continue;
+    const [name, schema, isRequired] = field;
+    properties[name] = schema;
+    if (isRequired) required2.push(name);
+  }
+  return { type: "object", properties, required: required2 };
+}
+function prop(type, title, description) {
+  const p = { type, title };
+  if (description) p.description = description;
+  return p;
+}
+function textField(title, description, value) {
+  const p = prop("string", title, description);
+  if (text(value) !== void 0) p.default = text(value);
+  return p;
+}
+function choice(title, description, values, value) {
+  const p = prop("string", title, description);
+  p.enum = values;
+  if (values.includes(value)) p.default = value;
+  return p;
+}
+function flag(title, description, value) {
+  const p = prop("boolean", title, description);
+  p.default = !!value;
+  return p;
+}
+function createWizard({ call, ask, defaultDatasource }) {
+  async function cronProblem(cron) {
+    const explained = await call("explain_cron", { cronExp: cron }) || {};
+    if (explained.valid === false) {
+      return `"${cron}" is not a valid cron expression${explained.error ? `: ${explained.error}` : "."}`;
+    }
+    return null;
+  }
+  async function askNewJob(args) {
+    if (blank(args.datasource) || blank(args.name) || blank(args.statement)) {
+      const list = await call("list_datasources", {});
+      const datasources = (Array.isArray(list) ? list : []).map((d) => text(d && d.name)).filter(Boolean);
+      if (!datasources.length) throw new Error("You have no datasources available over MCP, so no job can be created.");
+      const preferred = text(args.datasource) ?? defaultDatasource;
+      const answer = await ask(
+        "New scheduled job (step 1 of 2): what should run?",
+        form([
+          ["datasource", choice(
+            "Datasource",
+            "The database the job runs on",
+            datasources,
+            datasources.includes(preferred) ? preferred : datasources[0]
+          ), true],
+          ["name", textField("Job name", "Also the start of the result file name", args.name), true],
+          ["statement", textField("SQL statement", "ONE statement; its result is exported on every run", args.statement), true],
+          ["schema", textField("Schema", "Where the statement runs (database for SQL Server); empty for the connection's default", args.schema), false]
+        ])
+      );
+      if (!answer) return false;
+      for (const key of ["datasource", "name", "statement", "schema"]) {
+        const value = text(answer[key]);
+        if (value !== void 0) args[key] = value;
+        else if (key === "schema") delete args[key];
+      }
+      const missing = ["datasource", "name", "statement"].find((k) => blank(args[k]));
+      if (missing) throw new Error(`The form came back without ${missing}.`);
+    }
+    if (blank(args.cronExp)) return askScheduleAndOutput(args);
+    return true;
+  }
+  async function askScheduleAndOutput(args) {
+    let problem = null;
+    let schedule = EVERY_DAY;
+    let time3 = "08:00";
+    let cron = text(args.cronExp);
+    let answer = null;
+    for (let attempt = 0; attempt < ATTEMPTS; attempt++) {
+      answer = await ask(
+        (problem ? `${problem}
+
+` : "") + `New scheduled job "${args.name}" (step 2 of 2): when should it run, and where should the result file go?`,
+        form([
+          ["schedule", choice("Schedule", "How often the job runs", SCHEDULES, schedule), true],
+          ["time", textField("Time (HH:mm)", "Time of day of the run, server time; the minute for Every hour", time3), false],
+          ["cronExp", textField("Cron expression", "Only for Custom: Quartz cron, e.g. 0 30 6 ? * MON-FRI", cron), false],
+          ["format", choice("Result format", void 0, FORMATS, valueOr(args.format, "csv")), true],
+          ["delivery", choice("Deliver the file to", void 0, DELIVERIES, isEmail(args) ? BY_EMAIL : TO_FILE_MANAGER), true],
+          ["emailTo", textField("E-mail to", "For E-mail: addresses, comma separated; empty = your own address", args.emailTo), false],
+          ["compression", choice("Compression", void 0, COMPRESSIONS, valueOr(args.compression, "none")), false],
+          ["showHeaders", flag("Header row", "Column names in csv / txt / xlsx", args.showHeaders !== false), false],
+          ["notifyOnFailure", flag("E-mail me when a run fails", void 0, args.notifyOnFailure === true), false]
+        ])
+      );
+      if (!answer) return false;
+      schedule = valueOr(answer.schedule, EVERY_DAY);
+      time3 = valueOr(answer.time, "08:00");
+      cron = text(answer.cronExp);
+      try {
+        cron = cronOf(schedule, time3, cron);
+        problem = await cronProblem(cron);
+      } catch (e) {
+        problem = e.message;
+      }
+      if (!problem) break;
+      problem = `Please correct the schedule: ${problem}`;
+    }
+    if (problem) throw new Error(problem);
+    args.cronExp = cron;
+    args.format = valueOr(answer.format, "csv");
+    args.compression = valueOr(answer.compression, "none");
+    if (answer.delivery === BY_EMAIL) {
+      args.delivery = "email";
+      if (text(answer.emailTo) !== void 0) args.emailTo = text(answer.emailTo);
+      else delete args.emailTo;
+    } else {
+      args.delivery = "fileManager";
+      delete args.emailTo;
+    }
+    if (answer.showHeaders !== void 0) args.showHeaders = bool(answer.showHeaders);
+    if (answer.notifyOnFailure !== void 0) args.notifyOnFailure = bool(answer.notifyOnFailure);
+    return true;
+  }
+  const onlyJobId = (args) => args.jobId !== void 0 && Object.entries(args).every(([k, v]) => k === "jobId" || v === void 0);
+  async function askChanges(args) {
+    const job = await call("get_job", { jobId: args.jobId }) || {};
+    const schedule = job.schedule || {};
+    const output = job.output || {};
+    const notify = job.notify || {};
+    const delivery = job.delivery || {};
+    const changeableDelivery = !delivery.type || delivery.type === "fileManager" || delivery.type === "email";
+    const saved = {
+      name: job.name,
+      statement: job.statement,
+      schema: job.schema,
+      cronExp: schedule.cronExp,
+      format: output.format,
+      compression: valueOr(output.compression, "none"),
+      showHeaders: output.showHeaders !== false,
+      notifyOnSuccess: notify.onSuccess === true,
+      notifyOnFailure: notify.onFailure === true
+    };
+    if (changeableDelivery) {
+      saved.delivery = delivery.type === "email" ? BY_EMAIL : TO_FILE_MANAGER;
+      saved.emailTo = delivery.type === "email" ? valueOr(delivery.target, "") : "";
+    }
+    const values = { ...saved };
+    let problem = null;
+    for (let attempt = 0; attempt < ATTEMPTS; attempt++) {
+      const answer = await ask(
+        (problem ? `${problem}
+
+` : "") + `Change job ${args.jobId} "${job.name}" on ${job.datasource}.`,
+        form([
+          ["name", textField("Job name", void 0, values.name), true],
+          ["statement", textField("SQL statement", "ONE statement; its result is exported on every run", values.statement), true],
+          ["schema", textField("Schema", "Where the statement runs; empty keeps it", values.schema), false],
+          ["cronExp", textField("Cron expression", "Quartz cron, e.g. 0 0 8 ? * MON-FRI", values.cronExp), true],
+          ["format", choice("Result format", void 0, FORMATS, valueOr(values.format, "csv")), true],
+          changeableDelivery ? ["delivery", choice("Deliver the file to", void 0, DELIVERIES, values.delivery), true] : null,
+          changeableDelivery ? ["emailTo", textField("E-mail to", "For E-mail: addresses, comma separated; empty = your own address", values.emailTo), false] : null,
+          ["compression", choice("Compression", void 0, COMPRESSIONS, valueOr(values.compression, "none")), false],
+          ["showHeaders", flag("Header row", void 0, values.showHeaders === true), false],
+          ["notifyOnSuccess", flag("E-mail me when a run succeeds", void 0, values.notifyOnSuccess === true), false],
+          ["notifyOnFailure", flag("E-mail me when a run fails", void 0, values.notifyOnFailure === true), false]
+        ])
+      );
+      if (!answer) return null;
+      for (const key of Object.keys(saved)) {
+        if (key in answer) values[key] = typeof answer[key] === "string" ? answer[key].trim() : answer[key];
+      }
+      problem = values.cronExp === saved.cronExp ? null : await cronProblem(text(values.cronExp) ?? "");
+      if (!problem) break;
+      problem = `Please correct the schedule: ${problem}`;
+    }
+    if (problem) throw new Error(problem);
+    const changes = { jobId: args.jobId };
+    for (const key of Object.keys(saved)) {
+      if (key === "delivery" || key === "emailTo") continue;
+      const now = values[key];
+      if (now === "") continue;
+      if (String(saved[key]) !== String(now)) changes[key] = now;
+    }
+    if (changeableDelivery) {
+      const email2 = values.delivery === BY_EMAIL;
+      if (values.delivery !== saved.delivery) changes.delivery = email2 ? "email" : "fileManager";
+      if (email2 && String(values.emailTo ?? "") !== String(saved.emailTo)) changes.emailTo = values.emailTo ?? "";
+    }
+    return changes;
+  }
+  async function describe(job) {
+    const lines = [];
+    const line = (label, value) => value !== void 0 && value !== null && lines.push(`${label}: ${value}`);
+    line("Job", job.id === void 0 ? job.name : `${job.id} "${job.name}"`);
+    line("Datasource", job.datasource === void 0 ? void 0 : job.datasource + (job.schema ? ` / ${job.schema}` : ""));
+    const cron = job.schedule && job.schedule.cronExp;
+    if (cron) {
+      let description;
+      try {
+        description = text((await call("explain_cron", { cronExp: cron }) || {}).description);
+      } catch {
+      }
+      line("Schedule", cron + (description ? ` (${description})` : ""));
+    }
+    const delivery = job.delivery || {};
+    const to = delivery.type === "email" ? ` by e-mail to ${delivery.target}` : !delivery.type || delivery.type === "fileManager" ? " to your DBHawk File Manager" : ` by ${delivery.type}`;
+    line("Output", job.output && job.output.format ? job.output.format + to : void 0);
+    let out = lines.join("\n") + (lines.length ? "\n" : "");
+    if (job.statement) out += `SQL:
+${job.statement}
+`;
+    return out;
+  }
+  async function askConfirmation(tool, pending) {
+    const [question, yes] = CONFIRM[tool];
+    const type = pending.statementType ? ` (${pending.statementType})` : "";
+    const others = Array.isArray(pending.emailRecipients) ? pending.emailRecipients : [];
+    const why = others.length ? ` Its results are e-mailed to ${others.join(", ")}, so DBHawk asks you to confirm${type}.` : ` Your MCP tier asks you to confirm${type}.`;
+    const message = `${question}${why}
+` + await describe(pending.job || {});
+    const answer = await ask(message, form([["confirm", flag(yes, void 0, true), true]]));
+    return !!answer && bool(answer.confirm) !== false;
+  }
+  function cancelled(tool) {
+    return {
+      cancelled: true,
+      executed: false,
+      tool,
+      message: `The user cancelled the DBHawk form, so the job was not ${CONFIRM[tool][2]}. Do not call ${tool} again unless the user asks for it.`
+    };
+  }
+  return {
+    async run(tool, input) {
+      let args = { ...input || {} };
+      for (const key of Object.keys(args)) if (args[key] === void 0) delete args[key];
+      if (tool === "create_job" && ["datasource", "name", "statement", "cronExp"].some((k) => blank(args[k]))) {
+        if (blank(args.datasource) && defaultDatasource && !blank(args.name) && !blank(args.statement)) {
+          args.datasource = defaultDatasource;
+        }
+        if (["datasource", "name", "statement", "cronExp"].some((k) => blank(args[k])) && !await askNewJob(args)) {
+          return cancelled(tool);
+        }
+      } else if (tool === "update_job" && onlyJobId(args)) {
+        const changes = await askChanges(args);
+        if (!changes) return cancelled(tool);
+        if (Object.keys(changes).length === 1) {
+          return { updated: false, jobId: args.jobId, message: "The user changed nothing in the form; the job is as it was." };
+        }
+        args = changes;
+      }
+      let result = await call(tool, args);
+      if (args.confirm === void 0 && result && result.confirmationRequired === true) {
+        if (!await askConfirmation(tool, result)) return cancelled(tool);
+        args.confirm = true;
+        result = await call(tool, args);
+        if (result && typeof result === "object") {
+          result = { ...result, confirmation: "approved by the user in the DBHawk confirmation form" };
+        }
+      }
+      return result;
+    }
+  };
+}
+
+// jobs-dialog.js
+var DIALOG_TOOLS = /* @__PURE__ */ new Set(["create_job"]);
+var TOKEN = "dialog";
+var FORMATS2 = ["csv", "txt", "html", "pdf", "xlsx", "json", "parquet"];
+var OUTPUT = "output";
+var blank2 = (v) => v === void 0 || v === null || String(v).trim() === "";
+var text2 = (v) => blank2(v) ? void 0 : String(v).trim();
+function createDialog({ call, defaultDatasource }) {
+  async function datasourceNames() {
+    const list = await call("list_datasources", {});
+    return Array.isArray(list) ? list.map((d) => d && d.name).filter((name) => !blank2(name)) : [];
+  }
+  async function cronProblem(cron) {
+    const explained = await call("explain_cron", { cronExp: cron }) || {};
+    if (explained.valid === false) {
+      return `"${cron}" is not a valid cron expression${explained.error ? `: ${explained.error}` : "."}`;
+    }
+    return null;
+  }
+  function asked(token) {
+    const value = text2(token);
+    if (value === void 0) return [];
+    return [...new Set(value.split(",").map((f) => f.trim()).filter(Boolean))];
+  }
+  const ended = (problem) => /[.!?]$/.test(problem) ? problem : problem + ".";
+  function instruction(field, marker) {
+    const ask = "Put this question to the user and wait for their answer - do not answer it yourself and do not guess a value. ";
+    const again = `Then call create_job again with the arguments in 'job', the user's answer and ${TOKEN}="${marker}".`;
+    switch (field) {
+      case "datasource":
+        return `${ask}${again} The answer goes into 'datasource' and has to be one of 'options'.`;
+      case "cronExp":
+        return `${ask}${again} Turn what they say into a Quartz cron expression for 'cronExp' (check it with explain_cron first); DBHawk asks again if it is not valid.`;
+      case OUTPUT:
+        return `${ask}${again} Their answer goes into 'format' (one of 'options'), and into 'delivery' ("fileManager" or "email") with 'emailTo' when they want it e-mailed - an empty 'emailTo' means their own address. If the defaults suit them, call again with format="csv" and delivery="fileManager".`;
+      default:
+        return `${ask}${again} The answer goes into '${field}'.`;
+    }
+  }
+  function question(field, what, options, args, soFar) {
+    const marker = soFar.includes(field) ? soFar.join(",") : [...soFar, field].join(",");
+    const asking = {
+      questionRequired: true,
+      created: false,
+      field,
+      question: what,
+      ...options && options.length ? { options } : {},
+      [TOKEN]: marker,
+      job: { ...args },
+      message: instruction(field, marker)
+    };
+    return asking;
+  }
+  async function next(args, soFar) {
+    if (blank2(args.datasource) && blank2(defaultDatasource)) {
+      const datasources = await datasourceNames();
+      if (!datasources.length) throw new Error("You have no datasources available over MCP, so no job can be created.");
+      return question("datasource", "Which datasource should the job run on?", datasources, args, soFar);
+    }
+    if (blank2(args.name)) {
+      return question("name", "What should the job be called? The name also starts the name of every result file.", null, args, soFar);
+    }
+    if (blank2(args.statement)) {
+      return question(
+        "statement",
+        "Which SQL statement should the job run? It has to be ONE statement; its result is what every run exports.",
+        null,
+        args,
+        soFar
+      );
+    }
+    const cron = text2(args.cronExp);
+    const problem = cron === void 0 ? null : await cronProblem(cron);
+    if (cron === void 0 || problem) {
+      delete args.cronExp;
+      return question(
+        "cronExp",
+        `${problem ? ended(problem) + " " : ""}How often should the job run, and at what time? For example "every weekday at 8:00" or "on the 1st of every month at 23:30".`,
+        null,
+        args,
+        soFar
+      );
+    }
+    if (soFar.length && !soFar.includes(OUTPUT) && blank2(args.format) && blank2(args.delivery)) {
+      return question(
+        OUTPUT,
+        "In which format should the result file be, and where should it go? DBHawk writes csv into your File Manager unless you say otherwise.",
+        FORMATS2,
+        args,
+        soFar
+      );
+    }
+    return null;
+  }
+  return {
+    /** The next question for the user, or - when the job is complete - what the tool itself answers. */
+    async run(tool, args) {
+      const values = { ...args || {} };
+      const soFar = asked(values[TOKEN]);
+      delete values[TOKEN];
+      return await next(values, soFar) || call(tool, values);
+    }
+  };
+}
+
+// ui/jobs.html
+var jobs_default = `<!DOCTYPE html>
+<!--
+  (C) Copyright Datasparc Inc. All Rights Reserved.
+
+  DBHawk Job Scheduler as an MCP App (ui://dbhawk/jobs): the screen an MCP client that supports MCP Apps (Claude
+  Desktop, claude.ai) shows for the job tools. It talks to the host over postMessage (JSON-RPC 2.0, the ui/* methods
+  of the MCP Apps extension) and does everything through the server's own job tools (tools/call), so tiers, access
+  control and audit are the same as for the model. No external resources: the host's CSP allows none.
+  A copy of DBHawk's src/main/resources/mcp/ui/jobs.html (the screen of DBHawk's own MCP server) - keep both in step.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DBHawk Job Scheduler</title>
+<style>
+  :root {
+    --bg: var(--color-background-primary, #ffffff);
+    --bg2: var(--color-background-secondary, #f5f7fa);
+    --fg: var(--color-text-primary, #1d2733);
+    --muted: var(--color-text-secondary, #5b6776);
+    --border: var(--color-border-primary, #d9dee5);
+    --accent: #1a73c9;
+    --accent-fg: #ffffff;
+    --danger: #c62828;
+    --ok: #2e7d32;
+    --warn: #b26a00;
+    --radius: var(--border-radius-md, 6px);
+    --mono: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
+    font-family: var(--font-sans, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif);
+    font-size: 13px;
+    color-scheme: light;
+  }
+  [data-theme="dark"] {
+    --bg: var(--color-background-primary, #1e2329);
+    --bg2: var(--color-background-secondary, #262c33);
+    --fg: var(--color-text-primary, #e6eaef);
+    --muted: var(--color-text-secondary, #9aa5b1);
+    --border: var(--color-border-primary, #3a434d);
+    --accent: #4c9be8;
+    --danger: #ef6b6b;
+    --ok: #66bb6a;
+    --warn: #f0a33a;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--fg); }
+  #app { padding: 12px 14px 14px; }
+  h1 { font-size: 15px; margin: 0; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+  h2 { font-size: 13px; margin: 14px 0 6px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+  .bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+  .spacer { flex: 1; }
+  button { font: inherit; border: 1px solid var(--border); background: var(--bg); color: var(--fg); border-radius: var(--radius);
+           padding: 4px 10px; cursor: pointer; white-space: nowrap; }
+  button:hover:not(:disabled) { background: var(--bg2); }
+  button:disabled { opacity: .5; cursor: default; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
+  button.primary:hover:not(:disabled) { filter: brightness(1.08); background: var(--accent); }
+  button.danger { color: var(--danger); }
+  button.icon { padding: 2px 6px; border-color: transparent; background: transparent; }
+  button.icon:hover:not(:disabled) { border-color: var(--border); }
+  button.link { border: 0; background: none; color: var(--accent); padding: 0; text-align: left; }
+  button.link:hover { text-decoration: underline; background: none; }
+  input, select, textarea { font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--border);
+           border-radius: var(--radius); padding: 4px 6px; }
+  input:focus, select:focus, textarea:focus { outline: 2px solid color-mix(in srgb, var(--accent) 40%, transparent); border-color: var(--accent); }
+  textarea { font-family: var(--mono); font-size: 12px; width: 100%; min-height: 96px; resize: vertical; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { text-align: left; padding: 5px 6px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  th { font-weight: 600; color: var(--muted); font-size: 12px; background: var(--bg2); position: sticky; top: 0; }
+  tr.clickable:hover td { background: var(--bg2); }
+  td.actions { white-space: nowrap; text-align: right; }
+  .badge { display: inline-block; padding: 1px 7px; border-radius: 10px; font-size: 11px; border: 1px solid currentColor; line-height: 16px; }
+  .badge.ok { color: var(--ok); } .badge.warn { color: var(--warn); } .badge.err { color: var(--danger); } .badge.muted { color: var(--muted); }
+  .muted { color: var(--muted); }
+  .small { font-size: 12px; }
+  pre { font-family: var(--mono); font-size: 12px; background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius);
+        padding: 8px; margin: 0; white-space: pre-wrap; word-break: break-word; max-height: 260px; overflow: auto; }
+  .grid { display: grid; grid-template-columns: max-content 1fr; gap: 4px 14px; }
+  .grid > .k { color: var(--muted); }
+  .form { display: grid; grid-template-columns: 130px 1fr; gap: 8px 12px; align-items: center; }
+  .form > label { color: var(--muted); }
+  .form > .full { grid-column: 1 / -1; }
+  .form .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .form input[type=text], .form select, .form input[type=datetime-local] { min-width: 0; }
+  .wide { width: 100%; }
+  .banner { border-radius: var(--radius); padding: 7px 10px; margin-bottom: 10px; border: 1px solid; }
+  .banner.ok { color: var(--ok); background: color-mix(in srgb, var(--ok) 8%, transparent); }
+  .banner.err { color: var(--danger); background: color-mix(in srgb, var(--danger) 8%, transparent); white-space: pre-wrap; }
+  .banner.warn { color: var(--warn); background: color-mix(in srgb, var(--warn) 8%, transparent); }
+  .card { border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; }
+  .days label { display: inline-flex; gap: 3px; align-items: center; margin-right: 6px; }
+  .cronline { font-family: var(--mono); }
+  details > summary { cursor: pointer; color: var(--muted); margin: 10px 0 6px; }
+  .modal-back { position: fixed; inset: 0; background: rgba(0,0,0,.35); display: flex; align-items: flex-start; justify-content: center; padding-top: 40px; }
+  .modal { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 14px; width: min(520px, 94vw); box-shadow: 0 8px 30px rgba(0,0,0,.25); }
+  .modal .bar { justify-content: flex-end; margin: 12px 0 0; }
+  .empty { padding: 24px; text-align: center; color: var(--muted); }
+  .spin { display: inline-block; width: 12px; height: 12px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: s .8s linear infinite; vertical-align: -2px; }
+  @keyframes s { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<div id="app"><span class="spin"></span> <span class="muted">Loading the job scheduler\u2026</span></div>
+<script>
+(function () {
+  "use strict";
+
+  // \u2500\u2500 host bridge (MCP Apps: JSON-RPC 2.0 over postMessage) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+  var PROTOCOL = "2026-01-26";
+  var nextId = 1;
+  var pending = {};
+  var host = { context: {}, toolName: null, toolInput: null, initialized: false };
+
+  function post(message) { window.parent.postMessage(message, "*"); }
+
+  function rpc(method, params) {
+    var id = nextId++;
+    post({ jsonrpc: "2.0", id: id, method: method, params: params || {} });
+    return new Promise(function (resolve, reject) {
+      pending[id] = { resolve: resolve, reject: reject };
+      setTimeout(function () {
+        if (pending[id]) { delete pending[id]; reject(new Error(method + ": no answer from the host")); }
+      }, method === "tools/call" ? 600000 : 15000);
+    });
+  }
+
+  function notify(method, params) { post({ jsonrpc: "2.0", method: method, params: params || {} }); }
+
+  window.addEventListener("message", function (event) {
+    if (event.source !== window.parent) return;
+    var m = event.data;
+    if (!m || m.jsonrpc !== "2.0") return;
+    if (m.id != null && !m.method) {
+      var p = pending[m.id];
+      if (!p) return;
+      delete pending[m.id];
+      if (m.error) p.reject(new Error(m.error.message || "Host error")); else p.resolve(m.result);
+      return;
+    }
+    var params = m.params || {};
+    switch (m.method) {
+      case "ui/notifications/tool-input":
+        host.toolInput = params.arguments || {};
+        break;
+      case "ui/notifications/tool-result":
+        onToolResult(params);
+        break;
+      case "ui/notifications/tool-cancelled":
+        show(messageView("The tool call was cancelled.", "warn"));
+        break;
+      case "ui/notifications/host-context-changed":
+        applyContext(params);
+        break;
+      default:
+        if (m.id != null) post({ jsonrpc: "2.0", id: m.id, result: {} }); // ping, ui/resource-teardown
+    }
+  });
+
+  function applyContext(ctx) {
+    if (!ctx) return;
+    for (var k in ctx) host.context[k] = ctx[k];
+    if (ctx.theme) document.documentElement.setAttribute("data-theme", ctx.theme);
+    var vars = ctx.styles && ctx.styles.variables;
+    if (vars) for (var name in vars) if (vars[name] != null) document.documentElement.style.setProperty(name, vars[name]);
+    var info = ctx.toolInfo;
+    if (info && info.tool && info.tool.name) host.toolName = info.tool.name;
+    // hosts that carry the call in the context instead of a ui/notifications/tool-input of their own
+    var called = info && (info.arguments || info.input || (info.tool && (info.tool.arguments || info.tool.input)));
+    if (called && host.toolInput == null) host.toolInput = called;
+  }
+
+  /** The height the host should give the frame: the content (rounded up - a fraction would show a scrollbar), and an open dialog. */
+  function reportSize() {
+    var body = document.body;
+    var height = Math.ceil(Math.max(body.getBoundingClientRect().height, body.scrollHeight));
+    var modal = document.querySelector(".modal");
+    if (modal) height = Math.max(height, Math.ceil(modal.getBoundingClientRect().bottom) + 24);
+    notify("ui/notifications/size-changed", { width: document.documentElement.scrollWidth, height: height });
+  }
+
+  /** A server tool through the host; the parsed JSON answer, or an Error with the server's message. */
+  function callTool(name, args) {
+    return rpc("tools/call", { name: name, arguments: args || {} }).then(function (result) {
+      var text = textOf(result);
+      if (result && result.isError) throw new Error(text.replace(/^Error: /, ""));
+      return parse(text);
+    });
+  }
+
+  /** Tells the model what the user did on the screen, so the conversation stays in step (best effort). */
+  function tellModel(text) {
+    rpc("ui/update-model-context", { content: [{ type: "text", text: "[DBHawk job screen] " + text }] }).catch(function () {});
+  }
+
+  function textOf(result) {
+    if (!result) return "";
+    if (result.structuredContent) return JSON.stringify(result.structuredContent);
+    var parts = (result.content || []).filter(function (c) { return c.type === "text"; });
+    return parts.map(function (c) { return c.text; }).join("\\n");
+  }
+
+  function parse(text) { try { return JSON.parse(text); } catch (e) { return text; } }
+
+  // \u2500\u2500 DOM helpers \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+  function h(tag, attrs) {
+    var el = document.createElement(tag);
+    attrs = attrs || {};
+    for (var k in attrs) {
+      var v = attrs[k];
+      if (v == null || v === false) continue;
+      if (k === "class") el.className = v;
+      else if (k.indexOf("on") === 0) el.addEventListener(k.slice(2), v);
+      else if (k === "value") el.value = v;
+      else if (k === "checked") el.checked = !!v;
+      else if (k === "text") el.textContent = v;
+      else el.setAttribute(k, v === true ? "" : v);
+    }
+    for (var i = 2; i < arguments.length; i++) append(el, arguments[i]);
+    return el;
+  }
+  function append(el, child) {
+    if (child == null || child === false) return;
+    if (Array.isArray(child)) { child.forEach(function (c) { append(el, c); }); return; }
+    el.appendChild(child instanceof Node ? child : document.createTextNode(String(child)));
+  }
+
+  var root = document.getElementById("app");
+  function show(view) { root.textContent = ""; append(root, view); window.scrollTo(0, 0); reportSize(); }
+
+  function fmtTime(iso) {
+    if (!iso) return "\u2014";
+    var d = new Date(iso);
+    if (isNaN(d)) return iso;
+    try {
+      return d.toLocaleString(host.context.locale || undefined, {
+        timeZone: host.context.timeZone || undefined, year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit"
+      });
+    } catch (e) { return d.toLocaleString(); }
+  }
+
+  function scheduleText(s) {
+    if (!s) return "\u2014";
+    if (s.cronExp) return s.cronExp;
+    if (s.repeatIntervalMinutes) return "every " + s.repeatIntervalMinutes + " min";
+    return "once";
+  }
+
+  /** Where a job's result file goes, for people. */
+  function deliveryText(delivery) {
+    delivery = delivery || {};
+    if (!delivery.type || delivery.type === "fileManager") return "DBHawk File Manager";
+    if (delivery.type === "email") return "E-mail \u2192 " + (delivery.target || "your address");
+    return delivery.type + (delivery.target ? " \u2192 " + delivery.target : "");
+  }
+
+  function busy(button, promise) {
+    if (button) { button.disabled = true; button.dataset.label = button.textContent; append(button, [" ", h("span", { class: "spin" })]); }
+    return promise.finally(function () { if (button && button.isConnected) { button.disabled = false; button.textContent = button.dataset.label; } });
+  }
+
+  function banner(kind, text) { return text ? h("div", { class: "banner " + kind, text: text }) : null; }
+  function messageView(text, kind) {
+    return h("div", null, banner(kind || "ok", text), h("button", { onclick: function () { openList(); } }, "Show my jobs"));
+  }
+
+  // \u2500\u2500 state \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+  var state = { jobs: [], total: 0, offset: 0, limit: 50, filter: "", datasource: "", datasources: null, notice: null };
+
+  function takeNotice() { var n = state.notice; state.notice = null; return n; }
+
+  function isExport(job) { return !job.kind || job.kind === "export"; }
+  function editable(job) { return isExport(job) && job.availableOverMcp !== false; }
+
+  // \u2500\u2500 what the model's tool call opened \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+  function onToolResult(result) {
+    var tool = host.toolName;
+    var text = textOf(result);
+    var input = host.toolInput || {};
+    if (result.isError) {
+      var message = text.replace(/^Error: /, "");
+      if (tool === "create_job" || (tool == null && input.statement !== undefined && input.jobId === undefined)) {
+        openEditor(null, input, message);
+      } else if (tool === "update_job" && input.jobId) {
+        loadJob(input.jobId).then(function (job) { openEditor(job, input, message); }, function () { show(messageView(message, "err")); });
+      } else {
+        show(messageView(message, "err"));
+      }
+      return;
+    }
+    var data = parse(text);
+    route(data, tool, input);
+  }
+
+  function route(data, tool, input) {
+    if (!data || typeof data !== "object") { show(messageView(String(data || "Done."))); return; }
+    if (data.cancelled) { show(messageView(data.message || "Cancelled - nothing was changed.", "warn")); return; }
+    if (data.confirmationRequired) { openPending(data, input || {}); return; }
+    if (Array.isArray(data.jobs)) {
+      state.jobs = data.jobs; state.total = data.total || data.jobs.length; state.offset = data.offset || 0; state.limit = data.limit || 50;
+      state.filter = (input && input.name) || ""; state.datasource = (input && input.datasource) || "";
+      renderList();
+      return;
+    }
+    if (Array.isArray(data.executions)) { openDetail(data.jobId, null, data); return; }
+    if (data.created) { state.notice = ["ok", "Job created."]; openDetail(data.job.id, data.job); return; }
+    if (data.updated) { state.notice = ["ok", "Job saved."]; openDetail(data.job.id, data.job); return; }
+    if (data.deleted) { state.notice = ["ok", "Job " + data.jobId + " deleted."]; openList(); return; }
+    var outcome = ["started", "paused", "resumed", "interrupted"].filter(function (k) { return data[k]; })[0];
+    if (outcome) {
+      state.notice = ["ok", outcome === "started" ? "The job is running in the background." : "Job " + outcome + "."];
+      openDetail(data.jobId);
+      return;
+    }
+    if (data.id != null && data.name != null) { openDetail(data.id, data); return; }
+    openList();
+  }
+
+  // \u2500\u2500 job list \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+  function openList(button) {
+    var args = { offset: state.offset, limit: state.limit };
+    if (state.filter) args.name = state.filter;
+    if (state.datasource) args.datasource = state.datasource;
+    return busy(button, callTool("list_jobs", args).then(function (data) {
+      state.jobs = data.jobs || []; state.total = data.total || state.jobs.length;
+      renderList();
+    }, function (e) { show(messageView(e.message, "err")); }));
+  }
+
+  function renderList() {
+    var search = h("input", { type: "text", placeholder: "Filter by name", value: state.filter, onkeydown: function (e) {
+      if (e.key === "Enter") { state.filter = search.value.trim(); state.offset = 0; openList(); }
+    } });
+    var dsSelect = h("select", { onchange: function () { state.datasource = dsSelect.value; state.offset = 0; openList(); } },
+      h("option", { value: "" }, "All datasources"));
+    loadDatasources().then(function (list) {
+      list.forEach(function (ds) { append(dsSelect, h("option", { value: ds.name }, ds.name)); });
+      dsSelect.value = state.datasource;
+    }, function () { dsSelect.disabled = true; });
+
+    var refresh = h("button", { onclick: function () { openList(refresh); } }, "Refresh");
+    var head = h("div", { class: "bar" },
+      h("h1", null, "Scheduled jobs", h("span", { class: "muted small", text: state.total ? "(" + state.total + ")" : "" })),
+      h("span", { class: "spacer" }), search, dsSelect, refresh,
+      h("button", { class: "primary", onclick: function () { openEditor(null, {}); } }, "New job"));
+
+    var notice = takeNotice();
+    var body;
+    if (!state.jobs.length) {
+      body = h("div", { class: "empty" }, state.filter || state.datasource ? "No job matches." : "You have no scheduled jobs yet.",
+        h("div", { style: "margin-top:8px" }, h("button", { class: "primary", onclick: function () { openEditor(null, {}); } }, "Create a job")));
+    } else {
+      body = h("table", null,
+        h("thead", null, h("tr", null, ["Name", "Datasource", "Schedule", "Next run", "Last run", "Status", ""].map(function (t) { return h("th", null, t); }))),
+        h("tbody", null, state.jobs.map(jobRow)));
+    }
+    var pager = null;
+    if (state.total > state.limit) {
+      var last = Math.min(state.offset + state.limit, state.total);
+      pager = h("div", { class: "bar", style: "margin-top:8px" }, h("span", { class: "spacer" }),
+        h("span", { class: "muted small", text: (state.offset + 1) + "\u2013" + last + " of " + state.total }),
+        h("button", { disabled: state.offset === 0, onclick: function () { state.offset = Math.max(0, state.offset - state.limit); openList(); } }, "\u2039 Prev"),
+        h("button", { disabled: last >= state.total, onclick: function () { state.offset += state.limit; openList(); } }, "Next \u203A"));
+    }
+    show([head, notice && banner(notice[0], notice[1]), body, pager]);
+  }
+
+  function statusBadge(job) {
+    return job.paused ? h("span", { class: "badge warn" }, "Paused") : h("span", { class: "badge ok" }, "Active");
+  }
+
+  function jobRow(job) {
+    var actions = h("td", { class: "actions" });
+    if (isExport(job)) actions.appendChild(h("button", { class: "icon", title: "Run now", onclick: stop(function (e) { act("run_job", job, e.currentTarget); }) }, "\u25B6"));
+    if (job.paused) {
+      if (isExport(job)) actions.appendChild(h("button", { class: "icon", title: "Resume", onclick: stop(function (e) { act("resume_job", job, e.currentTarget); }) }, "\u23F5"));
+    } else {
+      actions.appendChild(h("button", { class: "icon", title: "Pause", onclick: stop(function (e) { act("pause_job", job, e.currentTarget); }) }, "\u23F8"));
+    }
+    if (editable(job)) actions.appendChild(h("button", { class: "icon", title: "Edit", onclick: stop(function () { editJob(job.id); }) }, "\u270E"));
+    actions.appendChild(h("button", { class: "icon danger", title: "Delete", onclick: stop(function (e) { act("delete_job", job, e.currentTarget); }) }, "\u{1F5D1}"));
+
+    return h("tr", { class: "clickable", onclick: function () { openDetail(job.id); } },
+      h("td", null, h("button", { class: "link" }, job.name), job.kind && job.kind !== "export" ? [" ", h("span", { class: "badge muted" }, job.kind)] : null,
+        job.delivery === "email" ? [" ", h("span", { class: "muted", title: "Delivers by e-mail" }, "\u2709")] : null),
+      h("td", null, job.datasource || h("span", { class: "muted" }, "\u2014")),
+      h("td", { class: "cronline small" }, scheduleText(job.schedule)),
+      h("td", null, job.paused ? h("span", { class: "muted" }, "\u2014") : fmtTime(job.nextRun)),
+      h("td", null, fmtTime(job.lastRun)),
+      h("td", null, statusBadge(job)),
+      actions);
+  }
+
+  function stop(fn) { return function (e) { e.stopPropagation(); fn(e); }; }
+
+  // \u2500\u2500 one job \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+  function loadJob(id) { return callTool("get_job", { jobId: id }); }
+
+  function openDetail(id, job, executions) {
+    if (id == null) id = job && job.id;
+    if (id == null) { show(messageView("This screen no longer knows which job it is about - open it from the list.", "err")); return Promise.resolve(); }
+    var jobP = job && job.statement !== undefined ? Promise.resolve(job) : loadJob(id);
+    var runsP = executions ? Promise.resolve(executions) : callTool("list_job_executions", { jobId: id, limit: 10 }).catch(function (e) { return { error: e.message }; });
+    if (!job) show(h("div", null, h("span", { class: "spin" }), " ", h("span", { class: "muted" }, "Loading job " + id + "\u2026")));
+    return Promise.all([jobP, runsP]).then(function (r) { renderDetail(r[0], r[1]); }, function (e) { show(messageView(e.message, "err")); });
+  }
+
+  function renderDetail(job, runs) {
+    var buttons = [];
+    if (isExport(job)) buttons.push(h("button", { class: "primary", onclick: function (e) { act("run_job", job, e.currentTarget); } }, "Run now"));
+    if (job.paused) {
+      if (isExport(job)) buttons.push(h("button", { onclick: function (e) { act("resume_job", job, e.currentTarget); } }, "Resume"));
+    } else {
+      buttons.push(h("button", { onclick: function (e) { act("pause_job", job, e.currentTarget); } }, "Pause"));
+    }
+    if (editable(job)) buttons.push(h("button", { onclick: function () { openEditor(job, {}); } }, "Edit"));
+    buttons.push(h("button", { class: "danger", onclick: function (e) { act("delete_job", job, e.currentTarget); } }, "Delete"));
+
+    var s = job.schedule || {};
+    var cronInfo = h("span", { class: "muted small" });
+    if (s.cronExp) callTool("explain_cron", { cronExp: s.cronExp }).then(function (c) { cronInfo.textContent = c && c.description ? " \u2014 " + c.description : ""; reportSize(); }, function () {});
+    var out = job.output || {}, delivery = job.delivery || {}, notifyCfg = job.notify || {};
+
+    var notice = takeNotice();
+    show([
+      h("div", { class: "bar" }, h("button", { onclick: function () { openList(); } }, "\u2039 Jobs"),
+        h("h1", null, job.name, statusBadge(job), job.kind && job.kind !== "export" ? h("span", { class: "badge muted" }, job.kind) : null),
+        h("span", { class: "spacer" }), buttons),
+      notice && banner(notice[0], notice[1]),
+      job.availableOverMcp === false ? banner("warn", "This job runs on a connection that is not one of your datasources available over MCP; change it in the DBHawk Job Scheduler.") : null,
+      h("div", { class: "grid" },
+        h("div", { class: "k" }, "Datasource"), h("div", null, job.datasource || "\u2014", job.schema ? h("span", { class: "muted", text: " \xB7 " + job.schema }) : null),
+        h("div", { class: "k" }, "Schedule"), h("div", null, h("span", { class: "cronline" }, scheduleText(s)), cronInfo),
+        h("div", { class: "k" }, "Next / last run"), h("div", null, (job.paused ? "paused" : fmtTime(job.nextRun)) + "  /  " + fmtTime(job.lastRun)),
+        s.startAt || s.endAt ? [h("div", { class: "k" }, "Active"), h("div", null, (s.startAt ? "from " + fmtTime(s.startAt) : "") + (s.endAt ? "  until " + fmtTime(s.endAt) : ""))] : null,
+        h("div", { class: "k" }, "Output"), h("div", null, [out.format, out.compression && out.compression !== "none" ? out.compression : null,
+          out.showHeaders === false ? "no headers" : null, out.separator && out.separator !== "," ? "separator " + out.separator : null,
+          out.charset].filter(Boolean).join(" \xB7 "), out.fileName ? h("div", { class: "muted small cronline", text: out.fileName }) : null),
+        h("div", { class: "k" }, "Delivery"), h("div", null, deliveryText(delivery)),
+        h("div", { class: "k" }, "Notify"), h("div", null, [notifyCfg.onSuccess ? "on success" : null, notifyCfg.onFailure ? "on failure" : null].filter(Boolean).join(", ") || "no e-mails")),
+      job.statement != null ? [h("h2", null, "SQL"), h("pre", null, job.statement)] : null,
+      h("h2", null, "Runs"), runsView(job, runs)
+    ]);
+  }
+
+  function runsView(job, runs) {
+    if (!runs) return h("div", { class: "muted" }, "\u2014");
+    if (runs.error) return banner("err", runs.error);
+    var list = runs.executions || [];
+    var refresh = h("button", { class: "small", onclick: function () {
+      busy(refresh, callTool("list_job_executions", { jobId: job.id, limit: 10 }).then(function (r) {
+        var holder = document.getElementById("runs");
+        if (holder) { holder.replaceWith(runsView(job, r)); reportSize(); }
+      }, function (e) { refresh.replaceWith(banner("err", e.message)); reportSize(); }));
+    } }, "Refresh");
+    if (!list.length) return h("div", { id: "runs" }, h("span", { class: "muted" }, "No runs yet. "), refresh);
+    var running = list.some(function (r) { return /run|progress|start/i.test(r.status || "") && !r.endTime; });
+    return h("div", { id: "runs" },
+      h("div", { class: "bar" }, h("span", { class: "muted small" }, "Latest " + list.length + (runs.total > list.length ? " of " + runs.total : "")),
+        h("span", { class: "spacer" }),
+        running && isExport(job) ? h("button", { class: "danger small", onclick: function (e) { act("interrupt_job", job, e.currentTarget); } }, "Interrupt run") : null,
+        refresh),
+      h("table", null,
+        h("thead", null, h("tr", null, ["Status", "Started", "Ended", "Time", "By", ""].map(function (t) { return h("th", null, t); }))),
+        h("tbody", null, list.map(function (r) {
+          var logRow = h("tr", { hidden: true }, h("td", { colspan: 6 }, h("pre", null, (r.logsTruncated ? "\u2026\\n" : "") + (r.logs || "(no log)"))));
+          var st = (r.status || "").toLowerCase();
+          var cls = /fail|error/.test(st) ? "err" : /success|ok|complete|done/.test(st) ? "ok" : "warn";
+          return [h("tr", null,
+            h("td", null, h("span", { class: "badge " + cls }, r.status || "?")),
+            h("td", null, fmtTime(r.startTime)), h("td", null, fmtTime(r.endTime)),
+            h("td", null, r.elapsedTime || "\u2014"), h("td", null, r.runBy || "\u2014"),
+            h("td", { class: "actions" }, h("button", { class: "icon small", onclick: function () { logRow.hidden = !logRow.hidden; reportSize(); } }, "Log"))), logRow];
+        }))));
+  }
+
+  // \u2500\u2500 actions (run, pause, resume, delete, interrupt) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+  var ACTIONS = {
+    run_job: { verb: "Run", ask: "Run job \u201C%s\u201D now?", done: "The job is running in the background.", told: "ran job" },
+    resume_job: { verb: "Resume", ask: "Put job \u201C%s\u201D back on its schedule? Its SQL will run again on schedule.", done: "Job resumed.", told: "resumed job" },
+    pause_job: { verb: "Pause", ask: null, done: "Job paused.", told: "paused job" },
+    delete_job: { verb: "Delete", ask: "Delete job \u201C%s\u201D? It is unscheduled and removed for good.", done: "Job deleted.", told: "deleted job", danger: true },
+    interrupt_job: { verb: "Interrupt", ask: "Interrupt the running job \u201C%s\u201D?", done: "The run was interrupted.", told: "interrupted job", danger: true }
+  };
+
+  function act(tool, job, button) {
+    var a = ACTIONS[tool];
+    var run = function () {
+      // the click (and the dialog for the risky ones) is the user's approval: confirm=true
+      return busy(button, callTool(tool, { jobId: job.id, confirm: true }).then(function (data) {
+        if (data && data.confirmationRequired) { openPending(data, { jobId: job.id }); return; }
+        tellModel("The user " + a.told + " " + job.id + " \\"" + job.name + "\\".");
+        state.notice = ["ok", a.done];
+        if (tool === "delete_job") openList(); else openDetail(job.id);
+      }, function (e) { state.notice = ["err", e.message]; if (tool === "delete_job") openList(); else openDetail(job.id); }));
+    };
+    if (!a.ask) { run(); return; }
+    confirmDialog(a.ask.replace("%s", job.name), a.verb, a.danger, run, job.statement && tool !== "delete_job" && tool !== "interrupt_job" ? job.statement : null);
+  }
+
+  function confirmDialog(question, verb, danger, onYes, sql) {
+    var back = h("div", { class: "modal-back" });
+    var close = function () { back.remove(); reportSize(); };
+    var yes = h("button", { class: danger ? "primary danger-bg" : "primary", onclick: function () { close(); onYes(); } }, verb);
+    if (danger) yes.style.background = yes.style.borderColor = "var(--danger)";
+    append(back, h("div", { class: "modal", onclick: function (e) { e.stopPropagation(); } },
+      h("div", { style: "font-weight:600;margin-bottom:8px" }, question),
+      sql ? h("pre", null, sql) : null,
+      h("div", { class: "bar" }, h("button", { onclick: close }, "Cancel"), yes)));
+    back.addEventListener("click", close);
+    document.body.appendChild(back);
+    yes.focus();
+    reportSize();
+  }
+
+  // \u2500\u2500 confirmation the model's call is waiting for \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+  var PENDING_TEXT = {
+    create_job: ["Create this job?", "Create job"], update_job: ["Save these changes?", "Save changes"],
+    delete_job: ["Delete this job?", "Delete job"], run_job: ["Run this job now?", "Run now"],
+    resume_job: ["Resume this job?", "Resume"], interrupt_job: ["Interrupt this run?", "Interrupt"]
+  };
+
+  /**
+   * The arguments of the call waiting for the confirmation: what the model sent, completed from the job
+   * DBHawk echoed back - a host that tells us the tool but not its arguments would leave us without a jobId.
+   */
+  function pendingArgs(tool, job, input) {
+    var args = {};
+    for (var k in input) args[k] = input[k];
+    if (args.jobId == null && job.id != null) args.jobId = job.id;
+    if (tool !== "create_job" && tool !== "update_job") return args;
+    for (var known in args) if (known !== "jobId" && known !== "confirm") return args; // the model's own arguments
+    var s = job.schedule || {}, o = job.output || {}, n = job.notify || {};
+    var echo = {
+      name: job.name, statement: job.statement, schema: job.schema,
+      datasource: tool === "create_job" ? job.datasource : null, // update_job has no datasource of its own
+      cronExp: s.cronExp, startAt: s.startAt, endAt: s.endAt,
+      format: o.format, fileName: o.fileName, showHeaders: o.showHeaders, separator: o.separator,
+      charset: o.charset, compression: o.compression,
+      notifyOnSuccess: n.onSuccess, notifyOnFailure: n.onFailure
+    };
+    for (var field in echo) if (echo[field] != null && echo[field] !== "") args[field] = echo[field];
+    return args;
+  }
+
+  function openPending(data, input) {
+    var tool = data.tool || host.toolName;
+    var text = PENDING_TEXT[tool] || ["Confirm?", "Confirm"];
+    var job = data.job || {};
+    var pendingInput = pendingArgs(tool, job, input);
+    var confirmBtn = h("button", { class: "primary", onclick: function () {
+      var args = {};
+      for (var k in pendingInput) args[k] = pendingInput[k];
+      args.confirm = true;
+      busy(confirmBtn, callTool(tool, args).then(function (result) {
+        tellModel("The user confirmed " + tool + (job.id ? " for job " + job.id : "") + " \\"" + (job.name || "") + "\\" on the screen; it is done.");
+        route(result, tool, pendingInput);
+      }, function (e) { show([banner("err", e.message), pendingCard()]); }));
+    } }, text[1]);
+    var cancel = h("button", { onclick: function () {
+      tellModel("The user declined " + tool + (job.name ? " for \\"" + job.name + "\\"" : "") + "; nothing was changed.");
+      show(messageView("Cancelled - nothing was changed.", "warn"));
+    } }, "Cancel");
+    var edit = (tool === "create_job" || tool === "update_job") ? h("button", { onclick: function () {
+      if (tool === "create_job") openEditor(null, pendingInput);
+      else loadJob(pendingInput.jobId).then(function (j) { openEditor(j, pendingInput); }, function (e) { show(messageView(e.message, "err")); });
+    } }, "Edit\u2026") : null;
+
+    function pendingCard() {
+      var s = job.schedule || {};
+      return h("div", { class: "card" },
+        h("h1", null, text[0]),
+        h("p", { class: "muted small" }, (data.emailRecipients && data.emailRecipients.length ? "Please confirm this" : "Your MCP tier asks you to confirm this") +
+          (data.statementType ? " (" + data.statementType + ")" : "") + ". Nothing has been done yet."),
+        h("div", { class: "grid" },
+          h("div", { class: "k" }, "Job"), h("div", null, job.name || "\u2014"),
+          h("div", { class: "k" }, "Datasource"), h("div", null, (job.datasource || input.datasource || "\u2014") + (job.schema ? " \xB7 " + job.schema : "")),
+          h("div", { class: "k" }, "Schedule"), h("div", { class: "cronline" }, scheduleText(s)),
+          job.output ? [h("div", { class: "k" }, "Output"), h("div", null, (job.output.format || "") + " \xB7 " + deliveryText(job.delivery))] : null),
+        data.emailRecipients && data.emailRecipients.length
+          ? h("div", { class: "banner warn", style: "margin-top:10px" }, "The results are e-mailed to " + data.emailRecipients.join(", ") +
+            " - DBHawk asks you to confirm whenever a job e-mails anyone but you.") : null,
+        job.statement ? [h("h2", null, "SQL"), h("pre", null, job.statement)] : null,
+        h("div", { class: "bar", style: "margin-top:12px" }, h("span", { class: "spacer" }), cancel, edit, confirmBtn));
+    }
+    show(pendingCard());
+  }
+
+  // \u2500\u2500 create / edit \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+  function loadDatasources() {
+    if (!state.datasources) state.datasources = callTool("list_datasources", {}).then(function (l) { return Array.isArray(l) ? l : []; });
+    state.datasources.catch(function () { state.datasources = null; });
+    return state.datasources;
+  }
+
+  function editJob(id) { loadJob(id).then(function (job) { openEditor(job, {}); }, function (e) { show(messageView(e.message, "err")); }); }
+
+  var DAYS = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
+
+  /** A Quartz cron of the schedule builder, or null for a custom one. */
+  function buildCron(kind, f) {
+    var hh = (f.time || "08:00").split(":"), H = +hh[0] || 0, M = +hh[1] || 0;
+    switch (kind) {
+      case "minutes": return "0 0/" + Math.max(1, Math.min(59, +f.every || 15)) + " * * * ?";
+      case "hourly": return "0 " + M + " * * * ?";
+      case "daily": return "0 " + M + " " + H + " * * ?";
+      case "weekdays": return "0 " + M + " " + H + " ? * MON-FRI";
+      case "weekly": return "0 " + M + " " + H + " ? * " + (f.days.length ? f.days.join(",") : "MON");
+      case "monthly": return "0 " + M + " " + H + " " + Math.max(1, Math.min(31, +f.day || 1)) + " * ?";
+      default: return null;
+    }
+  }
+
+  /** The builder settings of a cron it can express, else custom. */
+  function parseCron(cron) {
+    var two = function (n) { return (n < 10 ? "0" : "") + n; };
+    var m;
+    if (!cron) return { kind: "daily", time: "08:00", days: ["MON"], day: 1, every: 15 };
+    var t = function (H, M) { return two(+H) + ":" + two(+M); };
+    if ((m = /^0 0\\/(\\d+) \\* \\* \\* \\?$/.exec(cron))) return { kind: "minutes", every: +m[1], time: "08:00", days: ["MON"], day: 1 };
+    if ((m = /^0 (\\d+) \\* \\* \\* \\?$/.exec(cron))) return { kind: "hourly", time: t(0, m[1]), days: ["MON"], day: 1, every: 15 };
+    if ((m = /^0 (\\d+) (\\d+) \\* \\* \\?$/.exec(cron))) return { kind: "daily", time: t(m[2], m[1]), days: ["MON"], day: 1, every: 15 };
+    if ((m = /^0 (\\d+) (\\d+) \\? \\* MON-FRI$/.exec(cron))) return { kind: "weekdays", time: t(m[2], m[1]), days: ["MON"], day: 1, every: 15 };
+    if ((m = /^0 (\\d+) (\\d+) \\? \\* ((?:MON|TUE|WED|THU|FRI|SAT|SUN)(?:,(?:MON|TUE|WED|THU|FRI|SAT|SUN))*)$/.exec(cron)))
+      return { kind: "weekly", time: t(m[2], m[1]), days: m[3].split(","), day: 1, every: 15 };
+    if ((m = /^0 (\\d+) (\\d+) (\\d+) \\* \\?$/.exec(cron))) return { kind: "monthly", time: t(m[2], m[1]), day: +m[3], days: ["MON"], every: 15 };
+    return { kind: "custom", time: "08:00", days: ["MON"], day: 1, every: 15 };
+  }
+
+  function toLocalInput(iso) {
+    if (!iso) return "";
+    var d = new Date(iso);
+    if (isNaN(d)) return "";
+    var p = function (n) { return (n < 10 ? "0" : "") + n; };
+    return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate()) + "T" + p(d.getHours()) + ":" + p(d.getMinutes());
+  }
+  function fromLocalInput(v) { return v ? new Date(v).toISOString() : ""; }
+
+  /**
+   * The job form. job = the saved job (edit) or null (new); input = what the model passed (prefill, overrides the
+   * saved values); error = why the model's own call failed.
+   */
+  function openEditor(job, input, error) {
+    input = input || {};
+    var isNew = !job;
+    var s = (job && job.schedule) || {};
+    var out = (job && job.output) || {};
+    var nt = (job && job.notify) || {};
+    var pick = function (key, saved, dflt) { return input[key] !== undefined ? input[key] : saved !== undefined && saved !== null ? saved : dflt; };
+
+    var v = {
+      datasource: pick("datasource", job && job.datasource, ""),
+      schema: pick("schema", job && job.schema, ""),
+      name: pick("name", job && job.name, ""),
+      statement: pick("statement", job && job.statement, ""),
+      cronExp: pick("cronExp", s.cronExp, ""),
+      startAt: pick("startAt", s.startAt, ""),
+      endAt: pick("endAt", s.endAt, ""),
+      format: pick("format", out.format, "csv"),
+      fileName: pick("fileName", out.fileName, ""),
+      showHeaders: pick("showHeaders", out.showHeaders, true),
+      separator: pick("separator", out.separator, ","),
+      charset: pick("charset", out.charset, "UTF-8"),
+      compression: pick("compression", out.compression, "none"),
+      notifyOnSuccess: pick("notifyOnSuccess", nt.onSuccess, false),
+      notifyOnFailure: pick("notifyOnFailure", nt.onFailure, false),
+      delivery: input.delivery !== undefined ? (/mail/i.test(input.delivery) ? "email" : "fileManager")
+        : input.emailTo ? "email" : (job && job.delivery && job.delivery.type) || "fileManager",
+      emailTo: input.emailTo !== undefined ? input.emailTo
+        : job && job.delivery && job.delivery.type === "email" ? (job.delivery.target || "") : ""
+    };
+    // the File Manager and e-mail can be chosen here; SFTP, S3 and SharePoint stay as set in DBHawk
+    var deliveryFixed = v.delivery !== "fileManager" && v.delivery !== "email";
+    // the saved job: Save sends only what differs from it (what the model asked to change counts as a change)
+    var original = isNew ? null : {
+      schema: job.schema, name: job.name, statement: job.statement, cronExp: s.cronExp, startAt: s.startAt, endAt: s.endAt,
+      format: out.format, fileName: out.fileName, showHeaders: out.showHeaders !== false, separator: out.separator, charset: out.charset,
+      compression: out.compression, notifyOnSuccess: !!nt.onSuccess, notifyOnFailure: !!nt.onFailure,
+      delivery: (job.delivery && job.delivery.type) || "fileManager",
+      emailTo: job.delivery && job.delivery.type === "email" ? (job.delivery.target || "") : ""
+    };
+    var sched = parseCron(v.cronExp);
+    if (sched.kind === "custom" && !v.cronExp) sched.kind = "daily";
+
+    // fields
+    var dsSelect = h("select", { class: "wide", disabled: !isNew }, h("option", { value: "" }, isNew ? "Choose a datasource\u2026" : v.datasource));
+    var schemaInput = h("input", { type: "text", class: "wide", list: "schemas", value: v.schema, placeholder: "Default schema of the connection" });
+    var schemaList = h("datalist", { id: "schemas" });
+    var nameInput = h("input", { type: "text", class: "wide", value: v.name, maxlength: 200, placeholder: "e.g. daily_orders_export" });
+    var sqlInput = h("textarea", { spellcheck: "false", placeholder: "SELECT \u2026" }, v.statement || "");
+    sqlInput.value = v.statement || "";
+
+    var kindSelect = h("select", null, [["minutes", "Every N minutes"], ["hourly", "Every hour"], ["daily", "Every day"], ["weekdays", "Every weekday (Mon\u2013Fri)"],
+      ["weekly", "Every week on\u2026"], ["monthly", "Every month on day\u2026"], ["custom", "Custom cron expression"]].map(function (o) { return h("option", { value: o[0] }, o[1]); }));
+    kindSelect.value = sched.kind;
+    var everyInput = h("input", { type: "number", min: 1, max: 59, value: sched.every, style: "width:64px" });
+    var timeInput = h("input", { type: "time", value: sched.time });
+    var dayInput = h("input", { type: "number", min: 1, max: 31, value: sched.day, style: "width:64px" });
+    var dayBoxes = DAYS.map(function (d) { return h("input", { type: "checkbox", value: d, checked: sched.days.indexOf(d) >= 0 }); });
+    var daysRow = h("span", { class: "days" }, DAYS.map(function (d, i) { return h("label", null, dayBoxes[i], d.charAt(0) + d.slice(1).toLowerCase()); }));
+    var cronInput = h("input", { type: "text", class: "cronline", value: v.cronExp, style: "width:200px", placeholder: "0 0 8 ? * MON-FRI" });
+    var cronInfo = h("div", { class: "small muted" });
+    var startInput = h("input", { type: "datetime-local", value: toLocalInput(v.startAt) });
+    var endInput = h("input", { type: "datetime-local", value: toLocalInput(v.endAt) });
+
+    var formatSelect = h("select", null, ["csv", "txt", "html", "pdf", "xlsx", "json", "parquet"].map(function (f) { return h("option", { value: f }, f); }));
+    formatSelect.value = v.format || "csv";
+    var compressionSelect = h("select", null, [["none", "None"], ["zip", "zip"], ["gz", "gz"]].map(function (o) { return h("option", { value: o[0] }, o[1]); }));
+    compressionSelect.value = v.compression || "none";
+    var fileInput = h("input", { type: "text", class: "wide cronline", value: v.fileName, placeholder: "{job_name}_{yyyy-MM-dd-HH-mm-ss}" });
+    var headersBox = h("input", { type: "checkbox", checked: v.showHeaders !== false });
+    var sepInput = h("input", { type: "text", value: v.separator, style: "width:50px" });
+    var charsetInput = h("input", { type: "text", value: v.charset, style: "width:110px" });
+    var deliverySelect = h("select", { disabled: deliveryFixed }, deliveryFixed
+      ? h("option", { value: v.delivery }, deliveryText({ type: v.delivery }))
+      : [h("option", { value: "fileManager" }, "DBHawk File Manager"), h("option", { value: "email" }, "E-mail")]);
+    deliverySelect.value = v.delivery;
+    var emailInput = h("input", { type: "text", class: "wide", value: v.emailTo, placeholder: "your own address, or a@example.com, b@example.com" });
+    var emailRow = h("div", null, emailInput, h("div", { class: "small muted" },
+      "Comma separated. Anyone but you gets the data too, so DBHawk asks you to confirm; only domains DBHawk allows."));
+    var emailLabel = h("label", null, "E-mail to");
+    function refreshDelivery() { emailLabel.hidden = emailRow.hidden = deliverySelect.value !== "email"; reportSize(); }
+    deliverySelect.addEventListener("change", refreshDelivery);
+    var okBox = h("input", { type: "checkbox", checked: !!v.notifyOnSuccess });
+    var failBox = h("input", { type: "checkbox", checked: !!v.notifyOnFailure });
+
+    var errorBox = h("div");
+    if (error) append(errorBox, banner("err", error));
+
+    function currentCron() {
+      var kind = kindSelect.value;
+      if (kind === "custom") return cronInput.value.trim();
+      return buildCron(kind, { time: timeInput.value, every: everyInput.value, day: dayInput.value,
+        days: dayBoxes.filter(function (b) { return b.checked; }).map(function (b) { return b.value; }) });
+    }
+    var explainTimer = null, explainSeq = 0;
+    function refreshSchedule() {
+      var kind = kindSelect.value;
+      everyWrap.hidden = kind !== "minutes";
+      timeWrap.hidden = kind === "minutes" || kind === "custom";
+      daysRow.hidden = kind !== "weekly";
+      dayWrap.hidden = kind !== "monthly";
+      cronInput.readOnly = kind !== "custom";
+      if (kind !== "custom") cronInput.value = currentCron();
+      clearTimeout(explainTimer);
+      var seq = ++explainSeq;
+      explainTimer = setTimeout(function () {
+        var cron = currentCron();
+        if (!cron) { cronInfo.textContent = ""; return; }
+        callTool("explain_cron", { cronExp: cron }).then(function (c) {
+          if (seq !== explainSeq) return;
+          cronInfo.textContent = "";
+          if (c && c.valid === false) append(cronInfo, h("span", { style: "color:var(--danger)" }, c.error || "Not a valid cron expression"));
+          else if (c) append(cronInfo, (c.description || "") + (c.nextRun ? " \xB7 next run " + fmtTime(c.nextRun) : ""));
+          reportSize();
+        }, function (e) { if (seq === explainSeq) { cronInfo.textContent = e.message; reportSize(); } });
+      }, 350);
+      reportSize();
+    }
+    [kindSelect, everyInput, timeInput, dayInput, cronInput].forEach(function (el) { el.addEventListener("input", refreshSchedule); el.addEventListener("change", refreshSchedule); });
+    dayBoxes.forEach(function (b) { b.addEventListener("change", refreshSchedule); });
+    var everyWrap = h("span", null, "every ", everyInput, " minutes");
+    var timeWrap = h("span", null, "at ", timeInput);
+    var dayWrap = h("span", null, "day ", dayInput);
+
+    function loadSchemas() {
+      schemaList.textContent = "";
+      var ds = isNew ? dsSelect.value : v.datasource;
+      if (!ds) return;
+      callTool("list_schemas", { datasource: ds }).then(function (list) {
+        (Array.isArray(list) ? list : []).forEach(function (sc) { append(schemaList, h("option", { value: sc })); });
+      }, function () {});
+    }
+    if (isNew) {
+      loadDatasources().then(function (list) {
+        list.forEach(function (ds) { append(dsSelect, h("option", { value: ds.name }, ds.name + (ds.readOnly ? " (read-only)" : ""))); });
+        if (v.datasource) dsSelect.value = v.datasource;
+        if (!dsSelect.value && list.length === 1) dsSelect.value = list[0].name;
+        loadSchemas();
+      }, function (e) { append(errorBox, banner("err", "Could not list your datasources: " + e.message)); });
+      dsSelect.addEventListener("change", loadSchemas);
+    } else {
+      loadSchemas();
+    }
+
+    function collect() {
+      return {
+        datasource: isNew ? dsSelect.value : v.datasource,
+        schema: schemaInput.value.trim(),
+        name: nameInput.value.trim(),
+        statement: sqlInput.value.trim(),
+        cronExp: currentCron(),
+        startAt: fromLocalInput(startInput.value),
+        endAt: fromLocalInput(endInput.value),
+        format: formatSelect.value,
+        fileName: fileInput.value.trim(),
+        showHeaders: headersBox.checked,
+        separator: sepInput.value,
+        charset: charsetInput.value.trim(),
+        compression: compressionSelect.value,
+        notifyOnSuccess: okBox.checked,
+        notifyOnFailure: failBox.checked,
+        delivery: deliverySelect.value,
+        emailTo: deliverySelect.value === "email" ? emailInput.value.trim() : ""
+      };
+    }
+
+    var save = h("button", { class: "primary", onclick: function () {
+      var f = collect();
+      errorBox.textContent = "";
+      var missing = [];
+      if (isNew && !f.datasource) missing.push("datasource");
+      if (!f.name) missing.push("name");
+      if (!f.statement) missing.push("SQL");
+      if (!f.cronExp) missing.push("schedule");
+      if (missing.length) { append(errorBox, banner("err", "Please fill in: " + missing.join(", ") + ".")); reportSize(); return; }
+
+      var args, tool;
+      if (isNew) {
+        tool = "create_job";
+        args = {};
+        for (var key in f) if (f[key] !== "" || key === "statement") args[key] = f[key];
+        if (f.delivery !== "email") { delete args.delivery; delete args.emailTo; }
+      } else {
+        tool = "update_job";
+        args = { jobId: job.id };
+        for (var key2 in f) {
+          if (key2 === "datasource" || key2 === "delivery" || key2 === "emailTo") continue;
+          var before = original[key2], now = f[key2];
+          var same = key2 === "startAt" || key2 === "endAt"
+            ? toLocalInput(before) === toLocalInput(now)
+            : (before == null ? "" : String(before)) === (now == null ? "" : String(now));
+          if (!same) {
+            if (now === "" && key2 !== "endAt") continue; // an emptied field keeps its value; endAt "" clears it
+            args[key2] = now;
+          }
+        }
+        if (!deliveryFixed) {
+          if (f.delivery !== original.delivery) args.delivery = f.delivery;
+          // for e-mail, an emptied list means your own address
+          if (f.delivery === "email" && f.emailTo !== original.emailTo) args.emailTo = f.emailTo;
+        }
+        if (Object.keys(args).length === 1) { state.notice = ["ok", "Nothing changed."]; openDetail(job.id, job); return; }
+      }
+      // clicking Create / Save on this form is the user's approval of exactly this job
+      args.confirm = true;
+      busy(save, callTool(tool, args).then(function (data) {
+        if (data && data.confirmationRequired) { openPending(data, args); return; }
+        var saved = data && data.job;
+        tellModel("The user " + (isNew ? "created" : "changed") + " job " + (saved ? saved.id + " \\"" + saved.name + "\\"" : "") +
+          " on the screen (schedule " + f.cronExp + ", " + f.format + " " +
+          (f.delivery === "email" ? "by e-mail to " + (f.emailTo || "the user's own address") : "to the File Manager") + ").");
+        route(data, tool, args);
+      }, function (e) { append(errorBox, banner("err", e.message)); reportSize(); }));
+    } }, isNew ? "Create job" : "Save changes");
+
+    var cancel = h("button", { onclick: function () { if (isNew) openList(); else openDetail(job.id, job); } }, "Cancel");
+
+    show([
+      h("div", { class: "bar" }, h("h1", null, isNew ? "New scheduled job" : "Edit job " + job.name), h("span", { class: "spacer" })),
+      errorBox,
+      h("div", { class: "form" },
+        h("label", null, "Datasource"), dsSelect,
+        h("label", null, "Schema"), h("div", null, schemaInput, schemaList),
+        h("label", null, "Job name"), nameInput,
+        h("label", { class: "full" }, "SQL (one statement)"), h("div", { class: "full" }, sqlInput),
+        h("label", null, "Schedule"), h("div", { class: "row" }, kindSelect, everyWrap, timeWrap, dayWrap, daysRow),
+        h("label", null, "Cron"), h("div", null, h("div", { class: "row" }, cronInput), cronInfo),
+        h("label", null, "Format"), h("div", { class: "row" }, formatSelect, h("span", { class: "muted" }, "compression"), compressionSelect,
+          h("label", null, headersBox, " header row")),
+        h("label", null, "Deliver to"), deliverySelect,
+        emailLabel, emailRow,
+        h("label", null, "Notify me"), h("div", { class: "row" }, h("label", null, okBox, " on success"), h("label", null, failBox, " on failure"))),
+      h("details", null, h("summary", null, "More options"),
+        h("div", { class: "form" },
+          h("label", null, "First run after"), h("div", { class: "row" }, startInput, h("span", { class: "muted small" }, "empty = now")),
+          h("label", null, "No runs after"), h("div", { class: "row" }, endInput, h("span", { class: "muted small" }, "empty = no end")),
+          h("label", null, "File name"), fileInput,
+          h("label", null, "Separator / charset"), h("div", { class: "row" }, sepInput, charsetInput))),
+      h("p", { class: "muted small" }, (isNew ? "Create job" : "Save changes") +
+        " saves the job in DBHawk right away; your MCP tier still checks the SQL."),
+      h("div", { class: "bar" }, h("span", { class: "spacer" }), cancel, save)
+    ]);
+    refreshSchedule();
+    refreshDelivery();
+    (isNew && !v.name ? nameInput : sqlInput).focus();
+  }
+
+  // \u2500\u2500 start \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+  if (window.parent === window) {
+    root.textContent = "This is the DBHawk job screen of the DBHawk MCP server; it opens inside an MCP client.";
+    return;
+  }
+  if (window.ResizeObserver) new ResizeObserver(reportSize).observe(document.body);
+  rpc("ui/initialize", {
+    protocolVersion: PROTOCOL,
+    appInfo: { name: "DBHawk Job Scheduler", version: "7.1.1" },
+    appCapabilities: { availableDisplayModes: ["inline", "fullscreen"] }
+  }).then(function (result) {
+    applyContext((result && result.hostContext) || {});
+    host.initialized = true;
+    notify("ui/notifications/initialized", {});
+  }, function (e) {
+    root.textContent = "The MCP client did not start the job screen: " + e.message;
+  });
+})();
+</script>
+</body>
+</html>
+`;
+
 // index.js
 var RAW_BASE_URL = (process.env.DBHAWK_BASE_URL || "").trim();
 var unsetIfPlaceholder = (value) => /^\$\{[^}]*\}$/.test(value) ? "" : value;
-var TOKEN = unsetIfPlaceholder((process.env.DBHAWK_TOKEN || "").trim());
+var TOKEN2 = unsetIfPlaceholder((process.env.DBHAWK_TOKEN || "").trim());
 var DEFAULT_DATASOURCE = (process.env.DBHAWK_DEFAULT_DATASOURCE || "").trim();
 function configError(message) {
   console.error(`[dbhawk-mcp] ${message}`);
@@ -21855,10 +23187,10 @@ if (baseUrl.username || baseUrl.password || baseUrl.search || baseUrl.hash) {
 if (/\/api\/?$/.test(baseUrl.pathname)) {
   configError("Invalid configuration: DBHAWK_BASE_URL must be the DBHawk base URL without the trailing /api.");
 }
-if (/^eyJ[\w-]*\.[\w-]+\.[\w-]*$/.test(TOKEN)) {
+if (/^eyJ[\w-]*\.[\w-]+\.[\w-]*$/.test(TOKEN2)) {
   configError("Invalid configuration: DBHAWK_TOKEN looks like a JWT. Use the MCP-scoped personal token (dbh_...) from DBHawk -> User Profile -> API Token.");
 }
-if (/\s/.test(TOKEN)) {
+if (/\s/.test(TOKEN2)) {
   configError("Invalid configuration: DBHAWK_TOKEN must not contain whitespace.");
 }
 if (baseUrl.protocol === "http:" && !["localhost", "127.0.0.1", "[::1]"].includes(baseUrl.hostname)) {
@@ -21867,7 +23199,7 @@ if (baseUrl.protocol === "http:" && !["localhost", "127.0.0.1", "[::1]"].include
 var API_ROOT = RAW_BASE_URL.replace(/\/+$/, "") + "/api";
 var API_BASE = API_ROOT + "/v2/mcp";
 var TOKEN_EXCHANGE_PATH = "/v2/auth/token/exchange";
-var oauth = TOKEN ? null : createOAuthSession({
+var oauth = TOKEN2 ? null : createOAuthSession({
   apiRoot: API_ROOT,
   headers: () => clientHeaders(),
   log: (message) => console.error(`[dbhawk-mcp] ${message}`),
@@ -21900,7 +23232,7 @@ async function exchangeToken() {
   const res = await fetchWithRetry(
     "POST",
     url,
-    { method: "POST", headers: { ...clientHeaders(), "X-API-Token": TOKEN, Accept: "application/json" } },
+    { method: "POST", headers: { ...clientHeaders(), "X-API-Token": TOKEN2, Accept: "application/json" } },
     true
   );
   const payload = await res.text();
@@ -21981,8 +23313,8 @@ function resolveDatasource(datasource) {
   return ds;
 }
 function ok(value) {
-  const text = typeof value === "string" ? value : JSON.stringify(value, null, 2);
-  return { content: [{ type: "text", text }] };
+  const text3 = typeof value === "string" ? value : JSON.stringify(value, null, 2);
+  return { content: [{ type: "text", text: text3 }] };
 }
 function guard(handler) {
   return async (args) => {
@@ -21993,7 +23325,7 @@ function guard(handler) {
     }
   };
 }
-var server = new McpServer({ name: "dbhawk", version: "7.1.0" });
+var server = new McpServer({ name: "dbhawk", version: "7.1.1" });
 var READ_ONLY = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false };
 var WRITE = { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false };
 var datasourceArg = external_exports.string().optional().describe("Datasource name; defaults to DBHAWK_DEFAULT_DATASOURCE");
@@ -22233,6 +23565,284 @@ server.registerTool(
     return ok(await api("POST", "/format-query", { body, text: true, idempotent: true }));
   })
 );
+var REVERSIBLE = { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false };
+var JOBS_UI = "ui://dbhawk/jobs";
+var UI_MIME_TYPE = "text/html;profile=mcp-app";
+var UI_EXTENSION = "io.modelcontextprotocol/ui";
+var JOBS_UI_META = { ui: { resourceUri: JOBS_UI }, "ui/resourceUri": JOBS_UI };
+var FORM_TIMEOUT_MS = 10 * 60 * 1e3;
+server.registerResource(
+  "jobs-screen",
+  JOBS_UI,
+  {
+    title: "DBHawk Job Scheduler",
+    description: "The screen of the job tools: your scheduled jobs, their runs, and the job form.",
+    mimeType: UI_MIME_TYPE
+  },
+  async (uri) => ({
+    contents: [
+      {
+        uri: uri.href,
+        mimeType: UI_MIME_TYPE,
+        text: jobs_default,
+        // the screen loads nothing from anywhere and talks to DBHawk only through the client's tool calls
+        _meta: { ui: { prefersBorder: true, csp: { connectDomains: [], resourceDomains: [] } } }
+      }
+    ]
+  })
+);
+function asksWithForms() {
+  const caps = server.server.getClientCapabilities() || {};
+  const elicitation = caps.elicitation;
+  const forms = !!elicitation && typeof elicitation === "object" && (Object.keys(elicitation).length === 0 || !!elicitation.form);
+  return forms && !(caps.extensions && caps.extensions[UI_EXTENSION]);
+}
+function asksInChat() {
+  const caps = server.server.getClientCapabilities() || {};
+  if (caps.extensions && caps.extensions[UI_EXTENSION]) return false;
+  return !asksWithForms();
+}
+async function askUser(message, requestedSchema) {
+  const result = await server.server.elicitInput({ message, requestedSchema }, { timeout: FORM_TIMEOUT_MS });
+  return result && result.action === "accept" ? result.content || {} : null;
+}
+var jobIdArg = external_exports.number().int().positive().describe("Job id, from list_jobs");
+var confirmArg = (what) => external_exports.boolean().optional().describe(`true only after the user explicitly approved ${what}`);
+var jobFields = (create, optional2 = false) => {
+  const req = (schema) => create && !optional2 ? schema : schema.optional();
+  return {
+    name: req(external_exports.string().describe("Job name")),
+    statement: req(external_exports.string().describe("ONE SQL statement whose result is exported")),
+    schema: external_exports.string().optional().describe("Schema (database for SQL Server) the statement runs in"),
+    cronExp: req(external_exports.string().describe("Quartz cron expression, e.g. '0 0 8 ? * MON-FRI'")),
+    startAt: external_exports.string().optional().describe("First run not before this ISO-8601 time (default now)"),
+    endAt: external_exports.string().optional().describe(`No runs after this ISO-8601 time${create ? "" : "; empty string clears it"}`),
+    format: external_exports.enum(["csv", "txt", "html", "pdf", "xlsx", "json", "parquet"]).optional().describe("Output format (default csv)"),
+    fileName: external_exports.string().optional().describe("File name pattern without extension (default {job_name}_{yyyy-MM-dd-HH-mm-ss}); letters, digits, _ - % and {parameters} only"),
+    showHeaders: external_exports.boolean().optional().describe("Header row in csv / txt / xlsx (default true)"),
+    separator: external_exports.string().optional().describe("csv / txt field separator (default ,)"),
+    charset: external_exports.string().optional().describe("Output charset (default UTF-8)"),
+    compression: external_exports.enum(["none", "zip", "gz"]).optional().describe("Compression (default none)"),
+    delivery: external_exports.enum(["fileManager", "email"]).optional().describe("Where each run's result file goes (default fileManager)"),
+    emailTo: external_exports.string().optional().describe("For delivery=email: recipients, comma separated (default: your own address). Only domains DBHawk allows; anyone but you means the user must confirm"),
+    notifyOnSuccess: external_exports.boolean().optional().describe("E-mail the user (their own address) when a run succeeds"),
+    notifyOnFailure: external_exports.boolean().optional().describe("E-mail the user (their own address) when a run fails"),
+    confirm: confirmArg("this exact job")
+  };
+};
+function jobBody(args, skip = []) {
+  const body = {};
+  for (const [key, value] of Object.entries(args)) {
+    if (value === void 0 || skip.includes(key) || key === "confirm") continue;
+    body[key] = value;
+  }
+  if (args.confirm === true) body.confirm = true;
+  return body;
+}
+var JOB_ACTION_PATHS = {
+  delete_job: "delete",
+  pause_job: "pause",
+  resume_job: "resume",
+  run_job: "run",
+  interrupt_job: "interrupt"
+};
+async function jobCall(name, args) {
+  switch (name) {
+    case "list_datasources":
+      return api("GET", "/datasources");
+    case "explain_cron":
+      return api("POST", "/jobs/cron/explain", { body: jobBody(args), idempotent: true });
+    case "get_job":
+      return api("GET", `/jobs/${seg(args.jobId)}`);
+    case "create_job": {
+      const body = jobBody(args);
+      body.datasource = resolveDatasource(args.datasource);
+      for (const field of ["name", "statement", "cronExp"]) {
+        if (body[field] === void 0 || String(body[field]).trim() === "") {
+          throw new Error(`Argument '${field}' is required`);
+        }
+      }
+      return api("POST", "/jobs", { body });
+    }
+    case "update_job":
+      return api("PUT", `/jobs/${seg(args.jobId)}`, { body: jobBody(args, ["jobId"]) });
+    default: {
+      const action = JOB_ACTION_PATHS[name];
+      if (!action) throw new Error(`Unknown job tool ${name}`);
+      return api("POST", `/jobs/${seg(args.jobId)}/${action}`, { body: args.confirm === true ? { confirm: true } : {} });
+    }
+  }
+}
+async function runJobTool(name, args) {
+  if (WIZARD_TOOLS.has(name) && asksWithForms()) {
+    return createWizard({ call: jobCall, ask: askUser, defaultDatasource: DEFAULT_DATASOURCE || void 0 }).run(name, args);
+  }
+  if (DIALOG_TOOLS.has(name) && asksInChat()) {
+    return createDialog({ call: jobCall, defaultDatasource: DEFAULT_DATASOURCE || void 0 }).run(name, args);
+  }
+  return jobCall(name, args);
+}
+server.registerTool(
+  "list_jobs",
+  {
+    title: "List scheduled jobs",
+    description: "List YOUR scheduled DBHawk jobs (active and paused): id, name, kind (export / report / import), datasource, format, schedule, paused, last and next run, delivery. Needs view_jobs in the MCP tier.",
+    inputSchema: {
+      datasource: external_exports.string().optional().describe("Only jobs on this datasource, from list_datasources"),
+      name: external_exports.string().optional().describe("Case-insensitive part of the job name"),
+      offset: external_exports.number().int().nonnegative().optional().describe("Skip this many jobs (paging)"),
+      limit: external_exports.number().int().positive().optional().describe("Jobs per page (default 50, at most 200)")
+    },
+    annotations: READ_ONLY,
+    _meta: JOBS_UI_META
+  },
+  guard(async ({ datasource, name, offset, limit }) => {
+    const params = new URLSearchParams();
+    if (datasource) params.set("datasource", datasource);
+    if (name) params.set("name", name);
+    if (offset !== void 0) params.set("offset", String(offset));
+    if (limit !== void 0) params.set("limit", String(limit));
+    const qs = params.toString() ? `?${params.toString()}` : "";
+    return ok(await api("GET", `/jobs${qs}`));
+  })
+);
+server.registerTool(
+  "get_job",
+  {
+    title: "Get scheduled job",
+    description: "One of your jobs in full: SQL, schema, schedule, output, delivery and notifications. Needs view_jobs.",
+    inputSchema: { jobId: jobIdArg },
+    annotations: READ_ONLY,
+    _meta: JOBS_UI_META
+  },
+  guard(async ({ jobId }) => ok(await api("GET", `/jobs/${seg(jobId)}`)))
+);
+server.registerTool(
+  "list_job_executions",
+  {
+    title: "List job runs",
+    description: "The latest runs of one of your jobs, newest first: status, start / end time, who ran it and the end of the run log - use it to find out why a job failed. Needs view_jobs.",
+    inputSchema: {
+      jobId: jobIdArg,
+      limit: external_exports.number().int().positive().optional().describe("Runs to return (default 10, at most 50)")
+    },
+    annotations: { ...READ_ONLY, idempotentHint: false },
+    _meta: JOBS_UI_META
+  },
+  guard(async ({ jobId, limit }) => {
+    const qs = limit !== void 0 ? `?limit=${limit}` : "";
+    return ok(await api("GET", `/jobs/${seg(jobId)}/executions${qs}`));
+  })
+);
+server.registerTool(
+  "explain_cron",
+  {
+    title: "Explain cron expression",
+    description: "Validate a Quartz cron expression (seconds minutes hours day-of-month month day-of-week, e.g. '0 0 8 ? * MON-FRI') and describe it with its next run time. Use it before create_job / update_job.",
+    inputSchema: {
+      cronExp: external_exports.string().describe("Quartz cron expression"),
+      startAt: external_exports.string().optional().describe("Next run after this ISO-8601 time instead of now")
+    },
+    annotations: READ_ONLY
+  },
+  guard(async (args) => ok(await api("POST", "/jobs/cron/explain", { body: jobBody(args), idempotent: true })))
+);
+var DELIVERY_TEXT = "every run writes the result file into the user's DBHawk File Manager, or e-mails it (delivery=email; emailTo, default the user's own address; SFTP, S3 and SharePoint are not possible over MCP).";
+var CREATE_JOB_DESCRIPTION = "Schedule ONE SQL statement on a datasource; " + DELIVERY_TEXT + " Needs manage_jobs plus the MCP operations of the statement itself (see get_permissions) - a job with an UPDATE needs update_rows. A job that e-mails anyone but the user always needs the user's confirmation. Workflow: 1) check the cron with explain_cron; 2) call without confirm - when the tier asks for confirmation DBHawk answers { confirmationRequired: true } with the job and creates nothing; 3) show the job (SQL and schedule) to the user and only after they approve call again with the same arguments and confirm=true. Never set confirm=true on your own initiative.";
+var CREATE_JOB_WITH_FORMS_DESCRIPTION = "Schedule ONE SQL statement on a datasource; " + DELIVERY_TEXT + " Needs manage_jobs plus the MCP operations of the statement itself (see get_permissions). Pass what you know - DBHawk asks the user in a form for anything left out (datasource, name, SQL, schedule, format, delivery) and for the confirmation the tier wants; call it with no arguments when the user just wants to create a job. Never set confirm=true on your own initiative.";
+var CREATE_JOB_WITH_DIALOG_DESCRIPTION = "Schedule ONE SQL statement on a datasource; " + DELIVERY_TEXT + " Needs manage_jobs plus the MCP operations of the statement itself (see get_permissions). DBHawk fills the job in with the user, ONE question at a time: pass what you already know, and call it with no arguments at all when the user only says they want a job. An incomplete job is not an error - the answer is { questionRequired: true } with the question to put to the user, the 'options' they can pick from, the 'job' so far and a 'dialog' marker. Ask the user that question, wait for their answer, then call create_job again with the arguments of 'job', their answer, and 'dialog' unchanged. Never answer a question yourself and never guess a value. When the tier asks for confirmation the answer is { confirmationRequired: true } with the job and nothing is created: show the job (SQL and schedule) to the user and call again with confirm=true only after they approve. Never set confirm=true on your own initiative.";
+var dialogArg = external_exports.string().optional().describe("DBHawk's own marker of what it has already asked the user about: pass back the value of the previous answer unchanged, and nothing else");
+var createJobTool = server.registerTool(
+  "create_job",
+  {
+    title: "Create scheduled export job",
+    description: CREATE_JOB_DESCRIPTION,
+    inputSchema: { datasource: datasourceArg, ...jobFields(true) },
+    annotations: WRITE,
+    _meta: JOBS_UI_META
+  },
+  guard(async (args) => ok(await runJobTool("create_job", args)))
+);
+var UPDATE_JOB_DESCRIPTION = "Change one of your export jobs; arguments left out keep their value. The delivery can switch between the File Manager and e-mail (delivery, emailTo); a job that delivers by SFTP, S3 or SharePoint keeps its delivery and its SQL. Needs manage_jobs and the operations of the resulting SQL; confirmation as for create_job.";
+var updateJobTool = server.registerTool(
+  "update_job",
+  {
+    title: "Change scheduled job",
+    description: UPDATE_JOB_DESCRIPTION,
+    inputSchema: { jobId: jobIdArg, ...jobFields(false) },
+    annotations: WRITE,
+    _meta: JOBS_UI_META
+  },
+  guard(async (args) => ok(await runJobTool("update_job", args)))
+);
+server.server.oninitialized = () => {
+  if (asksWithForms()) {
+    createJobTool.update({
+      description: CREATE_JOB_WITH_FORMS_DESCRIPTION,
+      paramsSchema: { datasource: datasourceArg, ...jobFields(false, true) }
+    });
+    updateJobTool.update({
+      description: UPDATE_JOB_DESCRIPTION + " With only jobId, DBHawk opens the job in a form for the user to change."
+    });
+    return;
+  }
+  if (asksInChat()) {
+    createJobTool.update({
+      description: CREATE_JOB_WITH_DIALOG_DESCRIPTION,
+      paramsSchema: { datasource: datasourceArg, ...jobFields(false, true), [TOKEN]: dialogArg }
+    });
+  }
+};
+var jobActions = [
+  [
+    "delete_job",
+    "delete",
+    "Delete scheduled job",
+    WRITE,
+    "deleting this job",
+    "Unschedule and delete one of your jobs. Needs manage_jobs. When the tier asks for confirmation the first call returns { confirmationRequired: true } and deletes nothing - call again with confirm=true only after the user explicitly approved deleting this job."
+  ],
+  [
+    "pause_job",
+    "pause",
+    "Pause scheduled job",
+    REVERSIBLE,
+    null,
+    "Stop the schedule of one of your jobs until resume_job. Needs manage_jobs."
+  ],
+  [
+    "resume_job",
+    "resume",
+    "Resume scheduled job",
+    WRITE,
+    "resuming this job",
+    "Put one of your paused export jobs back on its schedule. Its SQL will run again, so it needs the statement's operations besides manage_jobs; confirmation as for create_job."
+  ],
+  [
+    "run_job",
+    "run",
+    "Run job now",
+    WRITE,
+    "running this job",
+    "Run one of your export jobs now, outside its schedule; it runs in the background - follow it with list_job_executions. Needs run_jobs and the operations of the job's SQL; when the tier asks for confirmation the first call returns { confirmationRequired: true } and runs nothing."
+  ],
+  [
+    "interrupt_job",
+    "interrupt",
+    "Interrupt job run",
+    WRITE,
+    "interrupting this run",
+    "Interrupt a running job of yours. Needs run_jobs; confirmation as for run_job."
+  ]
+];
+for (const [name, action, title, annotations, confirmWhat, description] of jobActions) {
+  const inputSchema = confirmWhat ? { jobId: jobIdArg, confirm: confirmArg(confirmWhat) } : { jobId: jobIdArg };
+  server.registerTool(
+    name,
+    { title, description, inputSchema, annotations, _meta: JOBS_UI_META },
+    guard(async (args) => ok(await runJobTool(name, args)))
+  );
+}
 var transport = new StdioServerTransport();
 await server.connect(transport);
 console.error(`[dbhawk-mcp] connected. API base: ${API_BASE} (${oauth ? "DBHawk sign-in, " + oauth.storeFile : "personal token"})`);

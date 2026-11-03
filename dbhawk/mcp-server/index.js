@@ -34,6 +34,10 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 import { createOAuthSession } from "./oauth.js";
 import { fetchWithRetry } from "./net.js";
+import { WIZARD_TOOLS, createWizard } from "./jobs-wizard.js";
+import { DIALOG_TOOLS, createDialog, TOKEN as DIALOG_TOKEN } from "./jobs-dialog.js";
+// the job screen (MCP App), bundled as text by esbuild (--loader:.html=text)
+import JOBS_HTML from "./ui/jobs.html";
 
 const RAW_BASE_URL = (process.env.DBHAWK_BASE_URL || "").trim();
 // an optional setting left empty may arrive as the unexpanded "${user_config...}" placeholder: treat it as unset
@@ -299,7 +303,7 @@ function guard(handler) {
   };
 }
 
-const server = new McpServer({ name: "dbhawk", version: "7.1.0" });
+const server = new McpServer({ name: "dbhawk", version: "7.1.1" });
 
 /**
  * Tool annotations tell the MCP client how risky a tool is. Clients typically let read-only tools run without
@@ -615,6 +619,355 @@ server.registerTool(
     return ok(await api("POST", "/format-query", { body, text: true, idempotent: true }));
   })
 );
+
+// ---- Scheduled jobs ------------------------------------------------------------------------------
+//
+// The job tools are interactive where the client allows it, as in the DBHawk Job Scheduler:
+// - a client that shows MCP Apps (Claude Desktop) opens the job screen ui://dbhawk/jobs with every job tool result;
+// - a client that fills in forms (elicitation) is asked for what the model left out and for the confirmation the
+//   MCP tier wants (jobs-wizard.js) - unless it shows the screen, which then does the asking;
+// - a plain chat client is asked by the model itself, one question at a time, with DBHawk choosing the questions
+//   (jobs-dialog.js).
+
+/** Pausing only stops runs and is undone by resume_job. */
+const REVERSIBLE = { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false };
+
+const JOBS_UI = "ui://dbhawk/jobs";
+const UI_MIME_TYPE = "text/html;profile=mcp-app";
+const UI_EXTENSION = "io.modelcontextprotocol/ui";
+/** _meta of a tool with the job screen: the current key and the one of the first MCP Apps hosts. */
+const JOBS_UI_META = { ui: { resourceUri: JOBS_UI }, "ui/resourceUri": JOBS_UI };
+/** How long a form may stay open. */
+const FORM_TIMEOUT_MS = 10 * 60 * 1000;
+
+server.registerResource(
+  "jobs-screen",
+  JOBS_UI,
+  {
+    title: "DBHawk Job Scheduler",
+    description: "The screen of the job tools: your scheduled jobs, their runs, and the job form.",
+    mimeType: UI_MIME_TYPE,
+  },
+  async (uri) => ({
+    contents: [
+      {
+        uri: uri.href,
+        mimeType: UI_MIME_TYPE,
+        text: JOBS_HTML,
+        // the screen loads nothing from anywhere and talks to DBHawk only through the client's tool calls
+        _meta: { ui: { prefersBorder: true, csp: { connectDomains: [], resourceDomains: [] } } },
+      },
+    ],
+  })
+);
+
+/** The client fills in forms and has no job screen to ask instead. */
+function asksWithForms() {
+  const caps = server.server.getClientCapabilities() || {};
+  const elicitation = caps.elicitation;
+  const forms = !!elicitation && typeof elicitation === "object" && (Object.keys(elicitation).length === 0 || !!elicitation.form);
+  return forms && !(caps.extensions && caps.extensions[UI_EXTENSION]);
+}
+
+/** Neither forms nor the job screen: the model does the asking, question by question. */
+function asksInChat() {
+  const caps = server.server.getClientCapabilities() || {};
+  if (caps.extensions && caps.extensions[UI_EXTENSION]) return false;
+  return !asksWithForms();
+}
+
+/** One form; the user's answers, or null when they declined or cancelled. */
+async function askUser(message, requestedSchema) {
+  const result = await server.server.elicitInput({ message, requestedSchema }, { timeout: FORM_TIMEOUT_MS });
+  return result && result.action === "accept" ? result.content || {} : null;
+}
+
+const jobIdArg = z.number().int().positive().describe("Job id, from list_jobs");
+const confirmArg = (what) => z.boolean().optional().describe(`true only after the user explicitly approved ${what}`);
+
+/**
+ * create_job / update_job fields; on update every one is optional and a left-out field keeps its value.
+ * optional: a create_job whose fields are all optional (the user is asked for the missing ones in a form).
+ */
+const jobFields = (create, optional = false) => {
+  const req = (schema) => (create && !optional ? schema : schema.optional());
+  return {
+    name: req(z.string().describe("Job name")),
+    statement: req(z.string().describe("ONE SQL statement whose result is exported")),
+    schema: z.string().optional().describe("Schema (database for SQL Server) the statement runs in"),
+    cronExp: req(z.string().describe("Quartz cron expression, e.g. '0 0 8 ? * MON-FRI'")),
+    startAt: z.string().optional().describe("First run not before this ISO-8601 time (default now)"),
+    endAt: z.string().optional().describe(`No runs after this ISO-8601 time${create ? "" : "; empty string clears it"}`),
+    format: z.enum(["csv", "txt", "html", "pdf", "xlsx", "json", "parquet"]).optional().describe("Output format (default csv)"),
+    fileName: z
+      .string()
+      .optional()
+      .describe("File name pattern without extension (default {job_name}_{yyyy-MM-dd-HH-mm-ss}); letters, digits, _ - % and {parameters} only"),
+    showHeaders: z.boolean().optional().describe("Header row in csv / txt / xlsx (default true)"),
+    separator: z.string().optional().describe("csv / txt field separator (default ,)"),
+    charset: z.string().optional().describe("Output charset (default UTF-8)"),
+    compression: z.enum(["none", "zip", "gz"]).optional().describe("Compression (default none)"),
+    delivery: z.enum(["fileManager", "email"]).optional().describe("Where each run's result file goes (default fileManager)"),
+    emailTo: z
+      .string()
+      .optional()
+      .describe("For delivery=email: recipients, comma separated (default: your own address). Only domains DBHawk allows; anyone but you means the user must confirm"),
+    notifyOnSuccess: z.boolean().optional().describe("E-mail the user (their own address) when a run succeeds"),
+    notifyOnFailure: z.boolean().optional().describe("E-mail the user (their own address) when a run fails"),
+    confirm: confirmArg("this exact job"),
+  };
+};
+
+/** The request body of a job call: the given fields only, confirm only when true. */
+function jobBody(args, skip = []) {
+  const body = {};
+  for (const [key, value] of Object.entries(args)) {
+    if (value === undefined || skip.includes(key) || key === "confirm") continue;
+    body[key] = value;
+  }
+  if (args.confirm === true) body.confirm = true;
+  return body;
+}
+
+/** The single-job actions: tool -> POST /jobs/{id}/{action}. */
+const JOB_ACTION_PATHS = {
+  delete_job: "delete",
+  pause_job: "pause",
+  resume_job: "resume",
+  run_job: "run",
+  interrupt_job: "interrupt",
+};
+
+/** The DBHawk answer of a job tool (and of the reads the forms need), without forms. */
+async function jobCall(name, args) {
+  switch (name) {
+    case "list_datasources":
+      return api("GET", "/datasources");
+    case "explain_cron":
+      return api("POST", "/jobs/cron/explain", { body: jobBody(args), idempotent: true });
+    case "get_job":
+      return api("GET", `/jobs/${seg(args.jobId)}`);
+    case "create_job": {
+      const body = jobBody(args);
+      body.datasource = resolveDatasource(args.datasource);
+      for (const field of ["name", "statement", "cronExp"]) {
+        if (body[field] === undefined || String(body[field]).trim() === "") {
+          throw new Error(`Argument '${field}' is required`);
+        }
+      }
+      return api("POST", "/jobs", { body });
+    }
+    case "update_job":
+      return api("PUT", `/jobs/${seg(args.jobId)}`, { body: jobBody(args, ["jobId"]) });
+    default: {
+      const action = JOB_ACTION_PATHS[name];
+      if (!action) throw new Error(`Unknown job tool ${name}`);
+      return api("POST", `/jobs/${seg(args.jobId)}/${action}`, { body: args.confirm === true ? { confirm: true } : {} });
+    }
+  }
+}
+
+/** A job tool call: with forms where the client fills them in, as a conversation in a plain chat, else straight to DBHawk. */
+async function runJobTool(name, args) {
+  if (WIZARD_TOOLS.has(name) && asksWithForms()) {
+    return createWizard({ call: jobCall, ask: askUser, defaultDatasource: DEFAULT_DATASOURCE || undefined }).run(name, args);
+  }
+  if (DIALOG_TOOLS.has(name) && asksInChat()) {
+    return createDialog({ call: jobCall, defaultDatasource: DEFAULT_DATASOURCE || undefined }).run(name, args);
+  }
+  return jobCall(name, args);
+}
+
+server.registerTool(
+  "list_jobs",
+  {
+    title: "List scheduled jobs",
+    description:
+      "List YOUR scheduled DBHawk jobs (active and paused): id, name, kind (export / report / import), datasource, " +
+      "format, schedule, paused, last and next run, delivery. Needs view_jobs in the MCP tier.",
+    inputSchema: {
+      datasource: z.string().optional().describe("Only jobs on this datasource, from list_datasources"),
+      name: z.string().optional().describe("Case-insensitive part of the job name"),
+      offset: z.number().int().nonnegative().optional().describe("Skip this many jobs (paging)"),
+      limit: z.number().int().positive().optional().describe("Jobs per page (default 50, at most 200)"),
+    },
+    annotations: READ_ONLY,
+    _meta: JOBS_UI_META,
+  },
+  guard(async ({ datasource, name, offset, limit }) => {
+    const params = new URLSearchParams();
+    if (datasource) params.set("datasource", datasource);
+    if (name) params.set("name", name);
+    if (offset !== undefined) params.set("offset", String(offset));
+    if (limit !== undefined) params.set("limit", String(limit));
+    const qs = params.toString() ? `?${params.toString()}` : "";
+    return ok(await api("GET", `/jobs${qs}`));
+  })
+);
+
+server.registerTool(
+  "get_job",
+  {
+    title: "Get scheduled job",
+    description: "One of your jobs in full: SQL, schema, schedule, output, delivery and notifications. Needs view_jobs.",
+    inputSchema: { jobId: jobIdArg },
+    annotations: READ_ONLY,
+    _meta: JOBS_UI_META,
+  },
+  guard(async ({ jobId }) => ok(await api("GET", `/jobs/${seg(jobId)}`)))
+);
+
+server.registerTool(
+  "list_job_executions",
+  {
+    title: "List job runs",
+    description:
+      "The latest runs of one of your jobs, newest first: status, start / end time, who ran it and the end of the " +
+      "run log - use it to find out why a job failed. Needs view_jobs.",
+    inputSchema: {
+      jobId: jobIdArg,
+      limit: z.number().int().positive().optional().describe("Runs to return (default 10, at most 50)"),
+    },
+    annotations: { ...READ_ONLY, idempotentHint: false },
+    _meta: JOBS_UI_META,
+  },
+  guard(async ({ jobId, limit }) => {
+    const qs = limit !== undefined ? `?limit=${limit}` : "";
+    return ok(await api("GET", `/jobs/${seg(jobId)}/executions${qs}`));
+  })
+);
+
+server.registerTool(
+  "explain_cron",
+  {
+    title: "Explain cron expression",
+    description:
+      "Validate a Quartz cron expression (seconds minutes hours day-of-month month day-of-week, e.g. " +
+      "'0 0 8 ? * MON-FRI') and describe it with its next run time. Use it before create_job / update_job.",
+    inputSchema: {
+      cronExp: z.string().describe("Quartz cron expression"),
+      startAt: z.string().optional().describe("Next run after this ISO-8601 time instead of now"),
+    },
+    annotations: READ_ONLY,
+  },
+  guard(async (args) => ok(await api("POST", "/jobs/cron/explain", { body: jobBody(args), idempotent: true })))
+);
+
+const DELIVERY_TEXT =
+  "every run writes the result file into the user's DBHawk File Manager, or e-mails it (delivery=email; emailTo, " +
+  "default the user's own address; SFTP, S3 and SharePoint are not possible over MCP).";
+
+const CREATE_JOB_DESCRIPTION =
+  "Schedule ONE SQL statement on a datasource; " + DELIVERY_TEXT + " Needs manage_jobs plus the MCP operations of the statement " +
+  "itself (see get_permissions) - a job with an UPDATE needs update_rows. A job that e-mails anyone but the user always " +
+  "needs the user's confirmation. Workflow: 1) check the cron with " +
+  "explain_cron; 2) call without confirm - when the tier asks for confirmation DBHawk answers " +
+  "{ confirmationRequired: true } with the job and creates nothing; 3) show the job (SQL and schedule) to the " +
+  "user and only after they approve call again with the same arguments and confirm=true. Never set confirm=true " +
+  "on your own initiative.";
+
+const CREATE_JOB_WITH_FORMS_DESCRIPTION =
+  "Schedule ONE SQL statement on a datasource; " + DELIVERY_TEXT + " Needs manage_jobs plus the MCP operations of the statement " +
+  "itself (see get_permissions). Pass what you know - DBHawk asks the user in a form for anything left out " +
+  "(datasource, name, SQL, schedule, format, delivery) and for the confirmation the tier wants; call it with no arguments " +
+  "when the user just wants to create a job. Never set confirm=true on your own initiative.";
+
+const CREATE_JOB_WITH_DIALOG_DESCRIPTION =
+  "Schedule ONE SQL statement on a datasource; " + DELIVERY_TEXT + " Needs manage_jobs plus the MCP operations of the statement " +
+  "itself (see get_permissions). DBHawk fills the job in with the user, ONE question at a time: pass what you " +
+  "already know, and call it with no arguments at all when the user only says they want a job. An incomplete job is " +
+  "not an error - the answer is { questionRequired: true } with the question to put to the user, the 'options' they " +
+  "can pick from, the 'job' so far and a 'dialog' marker. Ask the user that question, wait for their answer, then " +
+  "call create_job again with the arguments of 'job', their answer, and 'dialog' unchanged. Never answer a question " +
+  "yourself and never guess a value. When the tier asks for confirmation the answer is { confirmationRequired: true } " +
+  "with the job and nothing is created: show the job (SQL and schedule) to the user and call again with confirm=true " +
+  "only after they approve. Never set confirm=true on your own initiative.";
+
+/** DBHawk's own marker of the chat dialog; the model never writes one of its own. */
+const dialogArg = z
+  .string()
+  .optional()
+  .describe("DBHawk's own marker of what it has already asked the user about: pass back the value of the previous answer unchanged, and nothing else");
+
+const createJobTool = server.registerTool(
+  "create_job",
+  {
+    title: "Create scheduled export job",
+    description: CREATE_JOB_DESCRIPTION,
+    inputSchema: { datasource: datasourceArg, ...jobFields(true) },
+    annotations: WRITE,
+    _meta: JOBS_UI_META,
+  },
+  guard(async (args) => ok(await runJobTool("create_job", args)))
+);
+
+const UPDATE_JOB_DESCRIPTION =
+  "Change one of your export jobs; arguments left out keep their value. The delivery can switch between the File " +
+  "Manager and e-mail (delivery, emailTo); a job that delivers by SFTP, S3 or SharePoint keeps its delivery and its " +
+  "SQL. Needs manage_jobs and the operations of the resulting SQL; confirmation as for create_job.";
+
+const updateJobTool = server.registerTool(
+  "update_job",
+  {
+    title: "Change scheduled job",
+    description: UPDATE_JOB_DESCRIPTION,
+    inputSchema: { jobId: jobIdArg, ...jobFields(false) },
+    annotations: WRITE,
+    _meta: JOBS_UI_META,
+  },
+  guard(async (args) => ok(await runJobTool("update_job", args)))
+);
+
+// A client that is asked for what the model leaves out - in a form, or question by question in the chat - gets a
+// create_job that needs no argument at all.
+// Its capabilities are known once it is initialized, before it lists the tools.
+server.server.oninitialized = () => {
+  if (asksWithForms()) {
+    createJobTool.update({
+      description: CREATE_JOB_WITH_FORMS_DESCRIPTION,
+      paramsSchema: { datasource: datasourceArg, ...jobFields(false, true) },
+    });
+    updateJobTool.update({
+      description: UPDATE_JOB_DESCRIPTION + " With only jobId, DBHawk opens the job in a form for the user to change.",
+    });
+    return;
+  }
+  // a plain chat: create_job needs no argument either, because DBHawk asks the user through the model
+  if (asksInChat()) {
+    createJobTool.update({
+      description: CREATE_JOB_WITH_DIALOG_DESCRIPTION,
+      paramsSchema: { datasource: datasourceArg, ...jobFields(false, true), [DIALOG_TOKEN]: dialogArg },
+    });
+  }
+};
+
+/** The job tools that act on one job: POST /jobs/{id}/{action} with an optional confirm. */
+const jobActions = [
+  ["delete_job", "delete", "Delete scheduled job", WRITE, "deleting this job",
+    "Unschedule and delete one of your jobs. Needs manage_jobs. When the tier asks for confirmation the first call " +
+      "returns { confirmationRequired: true } and deletes nothing - call again with confirm=true only after the user " +
+      "explicitly approved deleting this job."],
+  ["pause_job", "pause", "Pause scheduled job", REVERSIBLE, null,
+    "Stop the schedule of one of your jobs until resume_job. Needs manage_jobs."],
+  ["resume_job", "resume", "Resume scheduled job", WRITE, "resuming this job",
+    "Put one of your paused export jobs back on its schedule. Its SQL will run again, so it needs the statement's " +
+      "operations besides manage_jobs; confirmation as for create_job."],
+  ["run_job", "run", "Run job now", WRITE, "running this job",
+    "Run one of your export jobs now, outside its schedule; it runs in the background - follow it with " +
+      "list_job_executions. Needs run_jobs and the operations of the job's SQL; when the tier asks for confirmation " +
+      "the first call returns { confirmationRequired: true } and runs nothing."],
+  ["interrupt_job", "interrupt", "Interrupt job run", WRITE, "interrupting this run",
+    "Interrupt a running job of yours. Needs run_jobs; confirmation as for run_job."],
+];
+
+for (const [name, action, title, annotations, confirmWhat, description] of jobActions) {
+  const inputSchema = confirmWhat ? { jobId: jobIdArg, confirm: confirmArg(confirmWhat) } : { jobId: jobIdArg };
+  server.registerTool(
+    name,
+    { title, description, inputSchema, annotations, _meta: JOBS_UI_META },
+    guard(async (args) => ok(await runJobTool(name, args)))
+  );
+}
 
 // ---- Boot ----------------------------------------------------------------------------------------
 

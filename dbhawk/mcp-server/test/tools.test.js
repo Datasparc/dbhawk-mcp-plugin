@@ -30,18 +30,35 @@ const call = (name, args = {}) => client.callTool({ name, arguments: args });
 const READ_TOOLS = [
   "get_permissions", "list_datasources", "get_datasource", "list_catalogs", "list_schemas", "list_objects",
   "list_columns", "run_query", "explain_plan", "list_sessions", "text_to_sql", "optimize_sql", "format_sql",
+  "list_jobs", "get_job", "list_job_executions", "explain_cron",
 ];
 
-const WRITE_TOOLS = ["execute_statement", "kill_session"];
+const WRITE_TOOLS = [
+  "execute_statement", "kill_session", "create_job", "update_job", "delete_job", "resume_job", "run_job", "interrupt_job",
+];
 
-test("exposes exactly the 15 DBHawk tools", async () => {
+/** Changes something, but only stops runs and is undone by resume_job. */
+const REVERSIBLE_TOOLS = ["pause_job"];
+
+test("exposes exactly the 26 DBHawk tools", async () => {
   const { tools } = await client.listTools();
-  assert.deepEqual(tools.map((t) => t.name).sort(), [...READ_TOOLS, ...WRITE_TOOLS].sort());
+  assert.deepEqual(tools.map((t) => t.name).sort(), [...READ_TOOLS, ...WRITE_TOOLS, ...REVERSIBLE_TOOLS].sort());
+});
+
+test("write tools are destructive and pause_job is neither read-only nor destructive", async () => {
+  const { tools } = await client.listTools();
+  for (const tool of tools.filter((t) => WRITE_TOOLS.includes(t.name))) {
+    assert.equal(tool.annotations?.readOnlyHint, false, `${tool.name} readOnlyHint`);
+    assert.equal(tool.annotations?.destructiveHint, true, `${tool.name} destructiveHint`);
+  }
+  const pause = tools.find((t) => t.name === "pause_job");
+  assert.equal(pause.annotations.readOnlyHint, false);
+  assert.equal(pause.annotations.destructiveHint, false);
 });
 
 test("every tool except the write tools is annotated read-only and non-destructive", async () => {
   const { tools } = await client.listTools();
-  for (const tool of tools.filter((t) => !WRITE_TOOLS.includes(t.name))) {
+  for (const tool of tools.filter((t) => !WRITE_TOOLS.includes(t.name) && !REVERSIBLE_TOOLS.includes(t.name))) {
     assert.equal(tool.annotations?.readOnlyHint, true, `${tool.name} readOnlyHint`);
     assert.equal(tool.annotations?.destructiveHint, false, `${tool.name} destructiveHint`);
     assert.equal(tool.annotations?.openWorldHint, false, `${tool.name} openWorldHint`);
@@ -228,4 +245,73 @@ test("path segments are URL-encoded", async () => {
 test("an explicit datasource wins over DBHAWK_DEFAULT_DATASOURCE", async () => {
   await call("run_query", { datasource: "other", query: "SELECT 1" });
   assert.equal(fake.last().path, `${MCP}/datasources/other/query`);
+});
+
+// ── scheduled jobs ─────────────────────────────────────────────────────
+
+test("list_jobs passes datasource, name and paging, and never defaults the datasource", async () => {
+  await call("list_jobs");
+  assert.equal(fake.last().method, "GET");
+  assert.equal(fake.last().rawUrl, `${MCP}/jobs`);
+
+  await call("list_jobs", { datasource: "ora", name: "daily", offset: 50, limit: 25 });
+  assert.equal(fake.last().path, `${MCP}/jobs`);
+  assert.deepEqual(fake.last().query, { datasource: "ora", name: "daily", offset: "50", limit: "25" });
+});
+
+test("get_job and list_job_executions", async () => {
+  await call("get_job", { jobId: 42 });
+  assert.equal(fake.last().path, `${MCP}/jobs/42`);
+
+  await call("list_job_executions", { jobId: 42, limit: 5 });
+  assert.equal(fake.last().rawUrl, `${MCP}/jobs/42/executions?limit=5`);
+});
+
+test("explain_cron posts the expression", async () => {
+  await call("explain_cron", { cronExp: "0 0 8 * * ?" });
+  assert.equal(fake.last().method, "POST");
+  assert.equal(fake.last().path, `${MCP}/jobs/cron/explain`);
+  assert.deepEqual(fake.last().body, { cronExp: "0 0 8 * * ?" });
+});
+
+test("create_job posts the job with the default datasource and confirms only when asked", async () => {
+  const job = { name: "Daily", statement: "SELECT 1", cronExp: "0 0 8 * * ?" };
+  await call("create_job", job);
+  assert.equal(fake.last().method, "POST");
+  assert.equal(fake.last().path, `${MCP}/jobs`);
+  assert.deepEqual(fake.last().body, { ...job, datasource: "pg-demo" });
+
+  await call("create_job", { ...job, datasource: "ora", format: "xlsx", confirm: true });
+  assert.deepEqual(fake.last().body, { ...job, datasource: "ora", format: "xlsx", confirm: true });
+});
+
+test("create_job offers no delivery target", async () => {
+  const { tools } = await client.listTools();
+  const props = Object.keys(tools.find((t) => t.name === "create_job").inputSchema.properties);
+  for (const forbidden of ["deliveryTarget", "sendEmail", "email", "sftpId", "s3", "sharePoint", "notifyEmail",
+    "compressionPassword", "publicKey"]) {
+    assert.ok(!props.includes(forbidden), forbidden);
+  }
+});
+
+test("update_job puts only the given fields", async () => {
+  await call("update_job", { jobId: 7, cronExp: "0 30 6 * * ?", confirm: false });
+  assert.equal(fake.last().method, "PUT");
+  assert.equal(fake.last().path, `${MCP}/jobs/7`);
+  assert.deepEqual(fake.last().body, { cronExp: "0 30 6 * * ?" });
+});
+
+test("job actions post to their endpoint and confirm only when asked", async () => {
+  for (const [tool, action] of [["delete_job", "delete"], ["resume_job", "resume"], ["run_job", "run"],
+    ["interrupt_job", "interrupt"]]) {
+    await call(tool, { jobId: 9 });
+    assert.equal(fake.last().method, "POST", tool);
+    assert.equal(fake.last().path, `${MCP}/jobs/9/${action}`, tool);
+    assert.deepEqual(fake.last().body, {}, tool);
+
+    await call(tool, { jobId: 9, confirm: true });
+    assert.deepEqual(fake.last().body, { confirm: true }, tool);
+  }
+  await call("pause_job", { jobId: 9 });
+  assert.equal(fake.last().path, `${MCP}/jobs/9/pause`);
 });

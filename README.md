@@ -156,6 +156,34 @@ Desktop doesn't understand plugins or `userConfig` — pass the three values as 
 | `text_to_sql` | `POST /datasources/{ds}/ai/ask` |
 | `optimize_sql` | `POST /datasources/{ds}/ai/optimize` |
 | `format_sql` | `POST /format-query` |
+| `list_jobs` | `GET /jobs` (your own scheduled jobs; needs `view_jobs`) |
+| `get_job` | `GET /jobs/{id}` (SQL, schedule, output, delivery; needs `view_jobs`) |
+| `list_job_executions` | `GET /jobs/{id}/executions` (latest runs with the end of their logs; needs `view_jobs`) |
+| `explain_cron` | `POST /jobs/cron/explain` (validates and describes a Quartz cron expression) |
+| `create_job` | `POST /jobs` (export job of ONE statement, results to your File Manager or by e-mail - `delivery`, `emailTo`, recipients in DBHawk's Allowed Domains; needs `manage_jobs` + the statement's operations; `confirm` flow, always when it e-mails anyone but you) |
+| `update_job` | `PUT /jobs/{id}` (fields left out keep their value; delivery switches between File Manager and e-mail; `confirm` flow) |
+| `delete_job` | `POST /jobs/{id}/delete` (`confirm` flow; needs `manage_jobs`) |
+| `pause_job` / `resume_job` | `POST /jobs/{id}/pause` · `/resume` (resume re-checks the job's SQL against the tier; `confirm` flow) |
+| `run_job` / `interrupt_job` | `POST /jobs/{id}/run` · `/interrupt` (needs `run_jobs`; run re-checks the job's SQL; `confirm` flow) |
+
+The job tools need a DBHawk server with the MCP job scheduler (migration 87 adds `view_jobs`, `manage_jobs` and
+`run_jobs`, granted to the *Destructive / admin* tier only) and the Job Scheduler license.
+
+The job tools are interactive where the client allows it:
+
+- **Job screen** (clients that show MCP Apps, e.g. Claude Desktop with the `.mcpb`): every job tool but
+  `explain_cron` opens `ui://dbhawk/jobs` - your jobs with Run / Pause / Resume / Edit / Delete, a job with its SQL,
+  schedule and runs, and a form for new and changed jobs with a schedule builder. A click there is your approval.
+- **Forms** (clients that support MCP elicitation and show no job screen): `create_job` asks you for whatever the model left
+  out (datasource, name, SQL, schedule, format), `update_job` with only a job id opens the job in a form, and a call
+  your MCP tier wants confirmed asks you in a form. Declining changes nothing.
+- **Chat dialog** (every other client): `create_job` is filled in with you in the chat, one question at a time -
+  DBHawk answers an incomplete job with the next question (datasource, name, SQL, schedule, result file) instead of
+  an error, and the assistant puts it to you and calls the tool again with your answer. A cron DBHawk cannot read is
+  asked again with the reason, and the confirmation your tier wants is still asked before anything is created.
+
+The screen (`mcp-server/ui/jobs.html`) is a copy of DBHawk's own (`src/main/resources/mcp/ui/jobs.html`); keep them
+in step.
 
 ### Reads, writes and MCP tiers
 

@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { ElicitRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 
 export const BUNDLE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "dist", "dbhawk-mcp.mjs");
 export const PERSONAL_TOKEN = "dbh_abc123.s3cr3t";
@@ -83,8 +84,11 @@ export async function startFakeDbhawk(opts = {}) {
  *
  * @param {string} baseUrl  fake DBHawk base URL (no trailing /api)
  * @param {object} [env]    extra / overriding environment, e.g. { DBHAWK_DEFAULT_DATASOURCE: "" }
+ * @param {object} [opts]
+ * @param {object}   [opts.capabilities]  client capabilities, e.g. { elicitation: {} } for a client that fills in forms
+ * @param {function} [opts.onElicit]      (params) => ElicitResult: the user answering a form
  */
-export async function startClient(baseUrl, env = {}) {
+export async function startClient(baseUrl, env = {}, opts = {}) {
   const transport = new StdioClientTransport({
     command: process.execPath,
     args: [BUNDLE],
@@ -96,7 +100,13 @@ export async function startClient(baseUrl, env = {}) {
     },
     stderr: "pipe",
   });
-  const client = new Client({ name: "dbhawk-mcp-tests", version: "1.0.0" });
+  const client = new Client(
+    { name: "dbhawk-mcp-tests", version: "1.0.0" },
+    opts.capabilities ? { capabilities: opts.capabilities } : undefined
+  );
+  if (opts.onElicit) {
+    client.setRequestHandler(ElicitRequestSchema, (request) => opts.onElicit(request.params));
+  }
   await client.connect(transport);
   return client;
 }

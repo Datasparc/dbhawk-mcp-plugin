@@ -1,0 +1,909 @@
+<!DOCTYPE html>
+<!--
+  (C) Copyright Datasparc Inc. All Rights Reserved.
+
+  DBHawk Job Scheduler as an MCP App (ui://dbhawk/jobs): the screen an MCP client that supports MCP Apps (Claude
+  Desktop, claude.ai) shows for the job tools. It talks to the host over postMessage (JSON-RPC 2.0, the ui/* methods
+  of the MCP Apps extension) and does everything through the server's own job tools (tools/call), so tiers, access
+  control and audit are the same as for the model. No external resources: the host's CSP allows none.
+  A copy of DBHawk's src/main/resources/mcp/ui/jobs.html (the screen of DBHawk's own MCP server) - keep both in step.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DBHawk Job Scheduler</title>
+<style>
+  :root {
+    --bg: var(--color-background-primary, #ffffff);
+    --bg2: var(--color-background-secondary, #f5f7fa);
+    --fg: var(--color-text-primary, #1d2733);
+    --muted: var(--color-text-secondary, #5b6776);
+    --border: var(--color-border-primary, #d9dee5);
+    --accent: #1a73c9;
+    --accent-fg: #ffffff;
+    --danger: #c62828;
+    --ok: #2e7d32;
+    --warn: #b26a00;
+    --radius: var(--border-radius-md, 6px);
+    --mono: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
+    font-family: var(--font-sans, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif);
+    font-size: 13px;
+    color-scheme: light;
+  }
+  [data-theme="dark"] {
+    --bg: var(--color-background-primary, #1e2329);
+    --bg2: var(--color-background-secondary, #262c33);
+    --fg: var(--color-text-primary, #e6eaef);
+    --muted: var(--color-text-secondary, #9aa5b1);
+    --border: var(--color-border-primary, #3a434d);
+    --accent: #4c9be8;
+    --danger: #ef6b6b;
+    --ok: #66bb6a;
+    --warn: #f0a33a;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--fg); }
+  #app { padding: 12px 14px 14px; }
+  h1 { font-size: 15px; margin: 0; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+  h2 { font-size: 13px; margin: 14px 0 6px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+  .bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+  .spacer { flex: 1; }
+  button { font: inherit; border: 1px solid var(--border); background: var(--bg); color: var(--fg); border-radius: var(--radius);
+           padding: 4px 10px; cursor: pointer; white-space: nowrap; }
+  button:hover:not(:disabled) { background: var(--bg2); }
+  button:disabled { opacity: .5; cursor: default; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
+  button.primary:hover:not(:disabled) { filter: brightness(1.08); background: var(--accent); }
+  button.danger { color: var(--danger); }
+  button.icon { padding: 2px 6px; border-color: transparent; background: transparent; }
+  button.icon:hover:not(:disabled) { border-color: var(--border); }
+  button.link { border: 0; background: none; color: var(--accent); padding: 0; text-align: left; }
+  button.link:hover { text-decoration: underline; background: none; }
+  input, select, textarea { font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--border);
+           border-radius: var(--radius); padding: 4px 6px; }
+  input:focus, select:focus, textarea:focus { outline: 2px solid color-mix(in srgb, var(--accent) 40%, transparent); border-color: var(--accent); }
+  textarea { font-family: var(--mono); font-size: 12px; width: 100%; min-height: 96px; resize: vertical; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { text-align: left; padding: 5px 6px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  th { font-weight: 600; color: var(--muted); font-size: 12px; background: var(--bg2); position: sticky; top: 0; }
+  tr.clickable:hover td { background: var(--bg2); }
+  td.actions { white-space: nowrap; text-align: right; }
+  .badge { display: inline-block; padding: 1px 7px; border-radius: 10px; font-size: 11px; border: 1px solid currentColor; line-height: 16px; }
+  .badge.ok { color: var(--ok); } .badge.warn { color: var(--warn); } .badge.err { color: var(--danger); } .badge.muted { color: var(--muted); }
+  .muted { color: var(--muted); }
+  .small { font-size: 12px; }
+  pre { font-family: var(--mono); font-size: 12px; background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius);
+        padding: 8px; margin: 0; white-space: pre-wrap; word-break: break-word; max-height: 260px; overflow: auto; }
+  .grid { display: grid; grid-template-columns: max-content 1fr; gap: 4px 14px; }
+  .grid > .k { color: var(--muted); }
+  .form { display: grid; grid-template-columns: 130px 1fr; gap: 8px 12px; align-items: center; }
+  .form > label { color: var(--muted); }
+  .form > .full { grid-column: 1 / -1; }
+  .form .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .form input[type=text], .form select, .form input[type=datetime-local] { min-width: 0; }
+  .wide { width: 100%; }
+  .banner { border-radius: var(--radius); padding: 7px 10px; margin-bottom: 10px; border: 1px solid; }
+  .banner.ok { color: var(--ok); background: color-mix(in srgb, var(--ok) 8%, transparent); }
+  .banner.err { color: var(--danger); background: color-mix(in srgb, var(--danger) 8%, transparent); white-space: pre-wrap; }
+  .banner.warn { color: var(--warn); background: color-mix(in srgb, var(--warn) 8%, transparent); }
+  .card { border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; }
+  .days label { display: inline-flex; gap: 3px; align-items: center; margin-right: 6px; }
+  .cronline { font-family: var(--mono); }
+  details > summary { cursor: pointer; color: var(--muted); margin: 10px 0 6px; }
+  .modal-back { position: fixed; inset: 0; background: rgba(0,0,0,.35); display: flex; align-items: flex-start; justify-content: center; padding-top: 40px; }
+  .modal { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 14px; width: min(520px, 94vw); box-shadow: 0 8px 30px rgba(0,0,0,.25); }
+  .modal .bar { justify-content: flex-end; margin: 12px 0 0; }
+  .empty { padding: 24px; text-align: center; color: var(--muted); }
+  .spin { display: inline-block; width: 12px; height: 12px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: s .8s linear infinite; vertical-align: -2px; }
+  @keyframes s { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<div id="app"><span class="spin"></span> <span class="muted">Loading the job scheduler…</span></div>
+<script>
+(function () {
+  "use strict";
+
+  // ── host bridge (MCP Apps: JSON-RPC 2.0 over postMessage) ──────────────────────────────────────────
+  var PROTOCOL = "2026-01-26";
+  var nextId = 1;
+  var pending = {};
+  var host = { context: {}, toolName: null, toolInput: null, initialized: false };
+
+  function post(message) { window.parent.postMessage(message, "*"); }
+
+  function rpc(method, params) {
+    var id = nextId++;
+    post({ jsonrpc: "2.0", id: id, method: method, params: params || {} });
+    return new Promise(function (resolve, reject) {
+      pending[id] = { resolve: resolve, reject: reject };
+      setTimeout(function () {
+        if (pending[id]) { delete pending[id]; reject(new Error(method + ": no answer from the host")); }
+      }, method === "tools/call" ? 600000 : 15000);
+    });
+  }
+
+  function notify(method, params) { post({ jsonrpc: "2.0", method: method, params: params || {} }); }
+
+  window.addEventListener("message", function (event) {
+    if (event.source !== window.parent) return;
+    var m = event.data;
+    if (!m || m.jsonrpc !== "2.0") return;
+    if (m.id != null && !m.method) {
+      var p = pending[m.id];
+      if (!p) return;
+      delete pending[m.id];
+      if (m.error) p.reject(new Error(m.error.message || "Host error")); else p.resolve(m.result);
+      return;
+    }
+    var params = m.params || {};
+    switch (m.method) {
+      case "ui/notifications/tool-input":
+        host.toolInput = params.arguments || {};
+        break;
+      case "ui/notifications/tool-result":
+        onToolResult(params);
+        break;
+      case "ui/notifications/tool-cancelled":
+        show(messageView("The tool call was cancelled.", "warn"));
+        break;
+      case "ui/notifications/host-context-changed":
+        applyContext(params);
+        break;
+      default:
+        if (m.id != null) post({ jsonrpc: "2.0", id: m.id, result: {} }); // ping, ui/resource-teardown
+    }
+  });
+
+  function applyContext(ctx) {
+    if (!ctx) return;
+    for (var k in ctx) host.context[k] = ctx[k];
+    if (ctx.theme) document.documentElement.setAttribute("data-theme", ctx.theme);
+    var vars = ctx.styles && ctx.styles.variables;
+    if (vars) for (var name in vars) if (vars[name] != null) document.documentElement.style.setProperty(name, vars[name]);
+    var info = ctx.toolInfo;
+    if (info && info.tool && info.tool.name) host.toolName = info.tool.name;
+    // hosts that carry the call in the context instead of a ui/notifications/tool-input of their own
+    var called = info && (info.arguments || info.input || (info.tool && (info.tool.arguments || info.tool.input)));
+    if (called && host.toolInput == null) host.toolInput = called;
+  }
+
+  /** The height the host should give the frame: the content (rounded up - a fraction would show a scrollbar), and an open dialog. */
+  function reportSize() {
+    var body = document.body;
+    var height = Math.ceil(Math.max(body.getBoundingClientRect().height, body.scrollHeight));
+    var modal = document.querySelector(".modal");
+    if (modal) height = Math.max(height, Math.ceil(modal.getBoundingClientRect().bottom) + 24);
+    notify("ui/notifications/size-changed", { width: document.documentElement.scrollWidth, height: height });
+  }
+
+  /** A server tool through the host; the parsed JSON answer, or an Error with the server's message. */
+  function callTool(name, args) {
+    return rpc("tools/call", { name: name, arguments: args || {} }).then(function (result) {
+      var text = textOf(result);
+      if (result && result.isError) throw new Error(text.replace(/^Error: /, ""));
+      return parse(text);
+    });
+  }
+
+  /** Tells the model what the user did on the screen, so the conversation stays in step (best effort). */
+  function tellModel(text) {
+    rpc("ui/update-model-context", { content: [{ type: "text", text: "[DBHawk job screen] " + text }] }).catch(function () {});
+  }
+
+  function textOf(result) {
+    if (!result) return "";
+    if (result.structuredContent) return JSON.stringify(result.structuredContent);
+    var parts = (result.content || []).filter(function (c) { return c.type === "text"; });
+    return parts.map(function (c) { return c.text; }).join("\n");
+  }
+
+  function parse(text) { try { return JSON.parse(text); } catch (e) { return text; } }
+
+  // ── DOM helpers ─────────────────────────────────────────────────────────────────────────────────────
+  function h(tag, attrs) {
+    var el = document.createElement(tag);
+    attrs = attrs || {};
+    for (var k in attrs) {
+      var v = attrs[k];
+      if (v == null || v === false) continue;
+      if (k === "class") el.className = v;
+      else if (k.indexOf("on") === 0) el.addEventListener(k.slice(2), v);
+      else if (k === "value") el.value = v;
+      else if (k === "checked") el.checked = !!v;
+      else if (k === "text") el.textContent = v;
+      else el.setAttribute(k, v === true ? "" : v);
+    }
+    for (var i = 2; i < arguments.length; i++) append(el, arguments[i]);
+    return el;
+  }
+  function append(el, child) {
+    if (child == null || child === false) return;
+    if (Array.isArray(child)) { child.forEach(function (c) { append(el, c); }); return; }
+    el.appendChild(child instanceof Node ? child : document.createTextNode(String(child)));
+  }
+
+  var root = document.getElementById("app");
+  function show(view) { root.textContent = ""; append(root, view); window.scrollTo(0, 0); reportSize(); }
+
+  function fmtTime(iso) {
+    if (!iso) return "—";
+    var d = new Date(iso);
+    if (isNaN(d)) return iso;
+    try {
+      return d.toLocaleString(host.context.locale || undefined, {
+        timeZone: host.context.timeZone || undefined, year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit"
+      });
+    } catch (e) { return d.toLocaleString(); }
+  }
+
+  function scheduleText(s) {
+    if (!s) return "—";
+    if (s.cronExp) return s.cronExp;
+    if (s.repeatIntervalMinutes) return "every " + s.repeatIntervalMinutes + " min";
+    return "once";
+  }
+
+  /** Where a job's result file goes, for people. */
+  function deliveryText(delivery) {
+    delivery = delivery || {};
+    if (!delivery.type || delivery.type === "fileManager") return "DBHawk File Manager";
+    if (delivery.type === "email") return "E-mail → " + (delivery.target || "your address");
+    return delivery.type + (delivery.target ? " → " + delivery.target : "");
+  }
+
+  function busy(button, promise) {
+    if (button) { button.disabled = true; button.dataset.label = button.textContent; append(button, [" ", h("span", { class: "spin" })]); }
+    return promise.finally(function () { if (button && button.isConnected) { button.disabled = false; button.textContent = button.dataset.label; } });
+  }
+
+  function banner(kind, text) { return text ? h("div", { class: "banner " + kind, text: text }) : null; }
+  function messageView(text, kind) {
+    return h("div", null, banner(kind || "ok", text), h("button", { onclick: function () { openList(); } }, "Show my jobs"));
+  }
+
+  // ── state ───────────────────────────────────────────────────────────────────────────────────────────
+  var state = { jobs: [], total: 0, offset: 0, limit: 50, filter: "", datasource: "", datasources: null, notice: null };
+
+  function takeNotice() { var n = state.notice; state.notice = null; return n; }
+
+  function isExport(job) { return !job.kind || job.kind === "export"; }
+  function editable(job) { return isExport(job) && job.availableOverMcp !== false; }
+
+  // ── what the model's tool call opened ───────────────────────────────────────────────────────────────
+  function onToolResult(result) {
+    var tool = host.toolName;
+    var text = textOf(result);
+    var input = host.toolInput || {};
+    if (result.isError) {
+      var message = text.replace(/^Error: /, "");
+      if (tool === "create_job" || (tool == null && input.statement !== undefined && input.jobId === undefined)) {
+        openEditor(null, input, message);
+      } else if (tool === "update_job" && input.jobId) {
+        loadJob(input.jobId).then(function (job) { openEditor(job, input, message); }, function () { show(messageView(message, "err")); });
+      } else {
+        show(messageView(message, "err"));
+      }
+      return;
+    }
+    var data = parse(text);
+    route(data, tool, input);
+  }
+
+  function route(data, tool, input) {
+    if (!data || typeof data !== "object") { show(messageView(String(data || "Done."))); return; }
+    if (data.cancelled) { show(messageView(data.message || "Cancelled - nothing was changed.", "warn")); return; }
+    if (data.confirmationRequired) { openPending(data, input || {}); return; }
+    if (Array.isArray(data.jobs)) {
+      state.jobs = data.jobs; state.total = data.total || data.jobs.length; state.offset = data.offset || 0; state.limit = data.limit || 50;
+      state.filter = (input && input.name) || ""; state.datasource = (input && input.datasource) || "";
+      renderList();
+      return;
+    }
+    if (Array.isArray(data.executions)) { openDetail(data.jobId, null, data); return; }
+    if (data.created) { state.notice = ["ok", "Job created."]; openDetail(data.job.id, data.job); return; }
+    if (data.updated) { state.notice = ["ok", "Job saved."]; openDetail(data.job.id, data.job); return; }
+    if (data.deleted) { state.notice = ["ok", "Job " + data.jobId + " deleted."]; openList(); return; }
+    var outcome = ["started", "paused", "resumed", "interrupted"].filter(function (k) { return data[k]; })[0];
+    if (outcome) {
+      state.notice = ["ok", outcome === "started" ? "The job is running in the background." : "Job " + outcome + "."];
+      openDetail(data.jobId);
+      return;
+    }
+    if (data.id != null && data.name != null) { openDetail(data.id, data); return; }
+    openList();
+  }
+
+  // ── job list ────────────────────────────────────────────────────────────────────────────────────────
+  function openList(button) {
+    var args = { offset: state.offset, limit: state.limit };
+    if (state.filter) args.name = state.filter;
+    if (state.datasource) args.datasource = state.datasource;
+    return busy(button, callTool("list_jobs", args).then(function (data) {
+      state.jobs = data.jobs || []; state.total = data.total || state.jobs.length;
+      renderList();
+    }, function (e) { show(messageView(e.message, "err")); }));
+  }
+
+  function renderList() {
+    var search = h("input", { type: "text", placeholder: "Filter by name", value: state.filter, onkeydown: function (e) {
+      if (e.key === "Enter") { state.filter = search.value.trim(); state.offset = 0; openList(); }
+    } });
+    var dsSelect = h("select", { onchange: function () { state.datasource = dsSelect.value; state.offset = 0; openList(); } },
+      h("option", { value: "" }, "All datasources"));
+    loadDatasources().then(function (list) {
+      list.forEach(function (ds) { append(dsSelect, h("option", { value: ds.name }, ds.name)); });
+      dsSelect.value = state.datasource;
+    }, function () { dsSelect.disabled = true; });
+
+    var refresh = h("button", { onclick: function () { openList(refresh); } }, "Refresh");
+    var head = h("div", { class: "bar" },
+      h("h1", null, "Scheduled jobs", h("span", { class: "muted small", text: state.total ? "(" + state.total + ")" : "" })),
+      h("span", { class: "spacer" }), search, dsSelect, refresh,
+      h("button", { class: "primary", onclick: function () { openEditor(null, {}); } }, "New job"));
+
+    var notice = takeNotice();
+    var body;
+    if (!state.jobs.length) {
+      body = h("div", { class: "empty" }, state.filter || state.datasource ? "No job matches." : "You have no scheduled jobs yet.",
+        h("div", { style: "margin-top:8px" }, h("button", { class: "primary", onclick: function () { openEditor(null, {}); } }, "Create a job")));
+    } else {
+      body = h("table", null,
+        h("thead", null, h("tr", null, ["Name", "Datasource", "Schedule", "Next run", "Last run", "Status", ""].map(function (t) { return h("th", null, t); }))),
+        h("tbody", null, state.jobs.map(jobRow)));
+    }
+    var pager = null;
+    if (state.total > state.limit) {
+      var last = Math.min(state.offset + state.limit, state.total);
+      pager = h("div", { class: "bar", style: "margin-top:8px" }, h("span", { class: "spacer" }),
+        h("span", { class: "muted small", text: (state.offset + 1) + "–" + last + " of " + state.total }),
+        h("button", { disabled: state.offset === 0, onclick: function () { state.offset = Math.max(0, state.offset - state.limit); openList(); } }, "‹ Prev"),
+        h("button", { disabled: last >= state.total, onclick: function () { state.offset += state.limit; openList(); } }, "Next ›"));
+    }
+    show([head, notice && banner(notice[0], notice[1]), body, pager]);
+  }
+
+  function statusBadge(job) {
+    return job.paused ? h("span", { class: "badge warn" }, "Paused") : h("span", { class: "badge ok" }, "Active");
+  }
+
+  function jobRow(job) {
+    var actions = h("td", { class: "actions" });
+    if (isExport(job)) actions.appendChild(h("button", { class: "icon", title: "Run now", onclick: stop(function (e) { act("run_job", job, e.currentTarget); }) }, "▶"));
+    if (job.paused) {
+      if (isExport(job)) actions.appendChild(h("button", { class: "icon", title: "Resume", onclick: stop(function (e) { act("resume_job", job, e.currentTarget); }) }, "⏵"));
+    } else {
+      actions.appendChild(h("button", { class: "icon", title: "Pause", onclick: stop(function (e) { act("pause_job", job, e.currentTarget); }) }, "⏸"));
+    }
+    if (editable(job)) actions.appendChild(h("button", { class: "icon", title: "Edit", onclick: stop(function () { editJob(job.id); }) }, "✎"));
+    actions.appendChild(h("button", { class: "icon danger", title: "Delete", onclick: stop(function (e) { act("delete_job", job, e.currentTarget); }) }, "🗑"));
+
+    return h("tr", { class: "clickable", onclick: function () { openDetail(job.id); } },
+      h("td", null, h("button", { class: "link" }, job.name), job.kind && job.kind !== "export" ? [" ", h("span", { class: "badge muted" }, job.kind)] : null,
+        job.delivery === "email" ? [" ", h("span", { class: "muted", title: "Delivers by e-mail" }, "✉")] : null),
+      h("td", null, job.datasource || h("span", { class: "muted" }, "—")),
+      h("td", { class: "cronline small" }, scheduleText(job.schedule)),
+      h("td", null, job.paused ? h("span", { class: "muted" }, "—") : fmtTime(job.nextRun)),
+      h("td", null, fmtTime(job.lastRun)),
+      h("td", null, statusBadge(job)),
+      actions);
+  }
+
+  function stop(fn) { return function (e) { e.stopPropagation(); fn(e); }; }
+
+  // ── one job ─────────────────────────────────────────────────────────────────────────────────────────
+  function loadJob(id) { return callTool("get_job", { jobId: id }); }
+
+  function openDetail(id, job, executions) {
+    if (id == null) id = job && job.id;
+    if (id == null) { show(messageView("This screen no longer knows which job it is about - open it from the list.", "err")); return Promise.resolve(); }
+    var jobP = job && job.statement !== undefined ? Promise.resolve(job) : loadJob(id);
+    var runsP = executions ? Promise.resolve(executions) : callTool("list_job_executions", { jobId: id, limit: 10 }).catch(function (e) { return { error: e.message }; });
+    if (!job) show(h("div", null, h("span", { class: "spin" }), " ", h("span", { class: "muted" }, "Loading job " + id + "…")));
+    return Promise.all([jobP, runsP]).then(function (r) { renderDetail(r[0], r[1]); }, function (e) { show(messageView(e.message, "err")); });
+  }
+
+  function renderDetail(job, runs) {
+    var buttons = [];
+    if (isExport(job)) buttons.push(h("button", { class: "primary", onclick: function (e) { act("run_job", job, e.currentTarget); } }, "Run now"));
+    if (job.paused) {
+      if (isExport(job)) buttons.push(h("button", { onclick: function (e) { act("resume_job", job, e.currentTarget); } }, "Resume"));
+    } else {
+      buttons.push(h("button", { onclick: function (e) { act("pause_job", job, e.currentTarget); } }, "Pause"));
+    }
+    if (editable(job)) buttons.push(h("button", { onclick: function () { openEditor(job, {}); } }, "Edit"));
+    buttons.push(h("button", { class: "danger", onclick: function (e) { act("delete_job", job, e.currentTarget); } }, "Delete"));
+
+    var s = job.schedule || {};
+    var cronInfo = h("span", { class: "muted small" });
+    if (s.cronExp) callTool("explain_cron", { cronExp: s.cronExp }).then(function (c) { cronInfo.textContent = c && c.description ? " — " + c.description : ""; reportSize(); }, function () {});
+    var out = job.output || {}, delivery = job.delivery || {}, notifyCfg = job.notify || {};
+
+    var notice = takeNotice();
+    show([
+      h("div", { class: "bar" }, h("button", { onclick: function () { openList(); } }, "‹ Jobs"),
+        h("h1", null, job.name, statusBadge(job), job.kind && job.kind !== "export" ? h("span", { class: "badge muted" }, job.kind) : null),
+        h("span", { class: "spacer" }), buttons),
+      notice && banner(notice[0], notice[1]),
+      job.availableOverMcp === false ? banner("warn", "This job runs on a connection that is not one of your datasources available over MCP; change it in the DBHawk Job Scheduler.") : null,
+      h("div", { class: "grid" },
+        h("div", { class: "k" }, "Datasource"), h("div", null, job.datasource || "—", job.schema ? h("span", { class: "muted", text: " · " + job.schema }) : null),
+        h("div", { class: "k" }, "Schedule"), h("div", null, h("span", { class: "cronline" }, scheduleText(s)), cronInfo),
+        h("div", { class: "k" }, "Next / last run"), h("div", null, (job.paused ? "paused" : fmtTime(job.nextRun)) + "  /  " + fmtTime(job.lastRun)),
+        s.startAt || s.endAt ? [h("div", { class: "k" }, "Active"), h("div", null, (s.startAt ? "from " + fmtTime(s.startAt) : "") + (s.endAt ? "  until " + fmtTime(s.endAt) : ""))] : null,
+        h("div", { class: "k" }, "Output"), h("div", null, [out.format, out.compression && out.compression !== "none" ? out.compression : null,
+          out.showHeaders === false ? "no headers" : null, out.separator && out.separator !== "," ? "separator " + out.separator : null,
+          out.charset].filter(Boolean).join(" · "), out.fileName ? h("div", { class: "muted small cronline", text: out.fileName }) : null),
+        h("div", { class: "k" }, "Delivery"), h("div", null, deliveryText(delivery)),
+        h("div", { class: "k" }, "Notify"), h("div", null, [notifyCfg.onSuccess ? "on success" : null, notifyCfg.onFailure ? "on failure" : null].filter(Boolean).join(", ") || "no e-mails")),
+      job.statement != null ? [h("h2", null, "SQL"), h("pre", null, job.statement)] : null,
+      h("h2", null, "Runs"), runsView(job, runs)
+    ]);
+  }
+
+  function runsView(job, runs) {
+    if (!runs) return h("div", { class: "muted" }, "—");
+    if (runs.error) return banner("err", runs.error);
+    var list = runs.executions || [];
+    var refresh = h("button", { class: "small", onclick: function () {
+      busy(refresh, callTool("list_job_executions", { jobId: job.id, limit: 10 }).then(function (r) {
+        var holder = document.getElementById("runs");
+        if (holder) { holder.replaceWith(runsView(job, r)); reportSize(); }
+      }, function (e) { refresh.replaceWith(banner("err", e.message)); reportSize(); }));
+    } }, "Refresh");
+    if (!list.length) return h("div", { id: "runs" }, h("span", { class: "muted" }, "No runs yet. "), refresh);
+    var running = list.some(function (r) { return /run|progress|start/i.test(r.status || "") && !r.endTime; });
+    return h("div", { id: "runs" },
+      h("div", { class: "bar" }, h("span", { class: "muted small" }, "Latest " + list.length + (runs.total > list.length ? " of " + runs.total : "")),
+        h("span", { class: "spacer" }),
+        running && isExport(job) ? h("button", { class: "danger small", onclick: function (e) { act("interrupt_job", job, e.currentTarget); } }, "Interrupt run") : null,
+        refresh),
+      h("table", null,
+        h("thead", null, h("tr", null, ["Status", "Started", "Ended", "Time", "By", ""].map(function (t) { return h("th", null, t); }))),
+        h("tbody", null, list.map(function (r) {
+          var logRow = h("tr", { hidden: true }, h("td", { colspan: 6 }, h("pre", null, (r.logsTruncated ? "…\n" : "") + (r.logs || "(no log)"))));
+          var st = (r.status || "").toLowerCase();
+          var cls = /fail|error/.test(st) ? "err" : /success|ok|complete|done/.test(st) ? "ok" : "warn";
+          return [h("tr", null,
+            h("td", null, h("span", { class: "badge " + cls }, r.status || "?")),
+            h("td", null, fmtTime(r.startTime)), h("td", null, fmtTime(r.endTime)),
+            h("td", null, r.elapsedTime || "—"), h("td", null, r.runBy || "—"),
+            h("td", { class: "actions" }, h("button", { class: "icon small", onclick: function () { logRow.hidden = !logRow.hidden; reportSize(); } }, "Log"))), logRow];
+        }))));
+  }
+
+  // ── actions (run, pause, resume, delete, interrupt) ─────────────────────────────────────────────────
+  var ACTIONS = {
+    run_job: { verb: "Run", ask: "Run job “%s” now?", done: "The job is running in the background.", told: "ran job" },
+    resume_job: { verb: "Resume", ask: "Put job “%s” back on its schedule? Its SQL will run again on schedule.", done: "Job resumed.", told: "resumed job" },
+    pause_job: { verb: "Pause", ask: null, done: "Job paused.", told: "paused job" },
+    delete_job: { verb: "Delete", ask: "Delete job “%s”? It is unscheduled and removed for good.", done: "Job deleted.", told: "deleted job", danger: true },
+    interrupt_job: { verb: "Interrupt", ask: "Interrupt the running job “%s”?", done: "The run was interrupted.", told: "interrupted job", danger: true }
+  };
+
+  function act(tool, job, button) {
+    var a = ACTIONS[tool];
+    var run = function () {
+      // the click (and the dialog for the risky ones) is the user's approval: confirm=true
+      return busy(button, callTool(tool, { jobId: job.id, confirm: true }).then(function (data) {
+        if (data && data.confirmationRequired) { openPending(data, { jobId: job.id }); return; }
+        tellModel("The user " + a.told + " " + job.id + " \"" + job.name + "\".");
+        state.notice = ["ok", a.done];
+        if (tool === "delete_job") openList(); else openDetail(job.id);
+      }, function (e) { state.notice = ["err", e.message]; if (tool === "delete_job") openList(); else openDetail(job.id); }));
+    };
+    if (!a.ask) { run(); return; }
+    confirmDialog(a.ask.replace("%s", job.name), a.verb, a.danger, run, job.statement && tool !== "delete_job" && tool !== "interrupt_job" ? job.statement : null);
+  }
+
+  function confirmDialog(question, verb, danger, onYes, sql) {
+    var back = h("div", { class: "modal-back" });
+    var close = function () { back.remove(); reportSize(); };
+    var yes = h("button", { class: danger ? "primary danger-bg" : "primary", onclick: function () { close(); onYes(); } }, verb);
+    if (danger) yes.style.background = yes.style.borderColor = "var(--danger)";
+    append(back, h("div", { class: "modal", onclick: function (e) { e.stopPropagation(); } },
+      h("div", { style: "font-weight:600;margin-bottom:8px" }, question),
+      sql ? h("pre", null, sql) : null,
+      h("div", { class: "bar" }, h("button", { onclick: close }, "Cancel"), yes)));
+    back.addEventListener("click", close);
+    document.body.appendChild(back);
+    yes.focus();
+    reportSize();
+  }
+
+  // ── confirmation the model's call is waiting for ────────────────────────────────────────────────────
+  var PENDING_TEXT = {
+    create_job: ["Create this job?", "Create job"], update_job: ["Save these changes?", "Save changes"],
+    delete_job: ["Delete this job?", "Delete job"], run_job: ["Run this job now?", "Run now"],
+    resume_job: ["Resume this job?", "Resume"], interrupt_job: ["Interrupt this run?", "Interrupt"]
+  };
+
+  /**
+   * The arguments of the call waiting for the confirmation: what the model sent, completed from the job
+   * DBHawk echoed back - a host that tells us the tool but not its arguments would leave us without a jobId.
+   */
+  function pendingArgs(tool, job, input) {
+    var args = {};
+    for (var k in input) args[k] = input[k];
+    if (args.jobId == null && job.id != null) args.jobId = job.id;
+    if (tool !== "create_job" && tool !== "update_job") return args;
+    for (var known in args) if (known !== "jobId" && known !== "confirm") return args; // the model's own arguments
+    var s = job.schedule || {}, o = job.output || {}, n = job.notify || {};
+    var echo = {
+      name: job.name, statement: job.statement, schema: job.schema,
+      datasource: tool === "create_job" ? job.datasource : null, // update_job has no datasource of its own
+      cronExp: s.cronExp, startAt: s.startAt, endAt: s.endAt,
+      format: o.format, fileName: o.fileName, showHeaders: o.showHeaders, separator: o.separator,
+      charset: o.charset, compression: o.compression,
+      notifyOnSuccess: n.onSuccess, notifyOnFailure: n.onFailure
+    };
+    for (var field in echo) if (echo[field] != null && echo[field] !== "") args[field] = echo[field];
+    return args;
+  }
+
+  function openPending(data, input) {
+    var tool = data.tool || host.toolName;
+    var text = PENDING_TEXT[tool] || ["Confirm?", "Confirm"];
+    var job = data.job || {};
+    var pendingInput = pendingArgs(tool, job, input);
+    var confirmBtn = h("button", { class: "primary", onclick: function () {
+      var args = {};
+      for (var k in pendingInput) args[k] = pendingInput[k];
+      args.confirm = true;
+      busy(confirmBtn, callTool(tool, args).then(function (result) {
+        tellModel("The user confirmed " + tool + (job.id ? " for job " + job.id : "") + " \"" + (job.name || "") + "\" on the screen; it is done.");
+        route(result, tool, pendingInput);
+      }, function (e) { show([banner("err", e.message), pendingCard()]); }));
+    } }, text[1]);
+    var cancel = h("button", { onclick: function () {
+      tellModel("The user declined " + tool + (job.name ? " for \"" + job.name + "\"" : "") + "; nothing was changed.");
+      show(messageView("Cancelled - nothing was changed.", "warn"));
+    } }, "Cancel");
+    var edit = (tool === "create_job" || tool === "update_job") ? h("button", { onclick: function () {
+      if (tool === "create_job") openEditor(null, pendingInput);
+      else loadJob(pendingInput.jobId).then(function (j) { openEditor(j, pendingInput); }, function (e) { show(messageView(e.message, "err")); });
+    } }, "Edit…") : null;
+
+    function pendingCard() {
+      var s = job.schedule || {};
+      return h("div", { class: "card" },
+        h("h1", null, text[0]),
+        h("p", { class: "muted small" }, (data.emailRecipients && data.emailRecipients.length ? "Please confirm this" : "Your MCP tier asks you to confirm this") +
+          (data.statementType ? " (" + data.statementType + ")" : "") + ". Nothing has been done yet."),
+        h("div", { class: "grid" },
+          h("div", { class: "k" }, "Job"), h("div", null, job.name || "—"),
+          h("div", { class: "k" }, "Datasource"), h("div", null, (job.datasource || input.datasource || "—") + (job.schema ? " · " + job.schema : "")),
+          h("div", { class: "k" }, "Schedule"), h("div", { class: "cronline" }, scheduleText(s)),
+          job.output ? [h("div", { class: "k" }, "Output"), h("div", null, (job.output.format || "") + " · " + deliveryText(job.delivery))] : null),
+        data.emailRecipients && data.emailRecipients.length
+          ? h("div", { class: "banner warn", style: "margin-top:10px" }, "The results are e-mailed to " + data.emailRecipients.join(", ") +
+            " - DBHawk asks you to confirm whenever a job e-mails anyone but you.") : null,
+        job.statement ? [h("h2", null, "SQL"), h("pre", null, job.statement)] : null,
+        h("div", { class: "bar", style: "margin-top:12px" }, h("span", { class: "spacer" }), cancel, edit, confirmBtn));
+    }
+    show(pendingCard());
+  }
+
+  // ── create / edit ───────────────────────────────────────────────────────────────────────────────────
+  function loadDatasources() {
+    if (!state.datasources) state.datasources = callTool("list_datasources", {}).then(function (l) { return Array.isArray(l) ? l : []; });
+    state.datasources.catch(function () { state.datasources = null; });
+    return state.datasources;
+  }
+
+  function editJob(id) { loadJob(id).then(function (job) { openEditor(job, {}); }, function (e) { show(messageView(e.message, "err")); }); }
+
+  var DAYS = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
+
+  /** A Quartz cron of the schedule builder, or null for a custom one. */
+  function buildCron(kind, f) {
+    var hh = (f.time || "08:00").split(":"), H = +hh[0] || 0, M = +hh[1] || 0;
+    switch (kind) {
+      case "minutes": return "0 0/" + Math.max(1, Math.min(59, +f.every || 15)) + " * * * ?";
+      case "hourly": return "0 " + M + " * * * ?";
+      case "daily": return "0 " + M + " " + H + " * * ?";
+      case "weekdays": return "0 " + M + " " + H + " ? * MON-FRI";
+      case "weekly": return "0 " + M + " " + H + " ? * " + (f.days.length ? f.days.join(",") : "MON");
+      case "monthly": return "0 " + M + " " + H + " " + Math.max(1, Math.min(31, +f.day || 1)) + " * ?";
+      default: return null;
+    }
+  }
+
+  /** The builder settings of a cron it can express, else custom. */
+  function parseCron(cron) {
+    var two = function (n) { return (n < 10 ? "0" : "") + n; };
+    var m;
+    if (!cron) return { kind: "daily", time: "08:00", days: ["MON"], day: 1, every: 15 };
+    var t = function (H, M) { return two(+H) + ":" + two(+M); };
+    if ((m = /^0 0\/(\d+) \* \* \* \?$/.exec(cron))) return { kind: "minutes", every: +m[1], time: "08:00", days: ["MON"], day: 1 };
+    if ((m = /^0 (\d+) \* \* \* \?$/.exec(cron))) return { kind: "hourly", time: t(0, m[1]), days: ["MON"], day: 1, every: 15 };
+    if ((m = /^0 (\d+) (\d+) \* \* \?$/.exec(cron))) return { kind: "daily", time: t(m[2], m[1]), days: ["MON"], day: 1, every: 15 };
+    if ((m = /^0 (\d+) (\d+) \? \* MON-FRI$/.exec(cron))) return { kind: "weekdays", time: t(m[2], m[1]), days: ["MON"], day: 1, every: 15 };
+    if ((m = /^0 (\d+) (\d+) \? \* ((?:MON|TUE|WED|THU|FRI|SAT|SUN)(?:,(?:MON|TUE|WED|THU|FRI|SAT|SUN))*)$/.exec(cron)))
+      return { kind: "weekly", time: t(m[2], m[1]), days: m[3].split(","), day: 1, every: 15 };
+    if ((m = /^0 (\d+) (\d+) (\d+) \* \?$/.exec(cron))) return { kind: "monthly", time: t(m[2], m[1]), day: +m[3], days: ["MON"], every: 15 };
+    return { kind: "custom", time: "08:00", days: ["MON"], day: 1, every: 15 };
+  }
+
+  function toLocalInput(iso) {
+    if (!iso) return "";
+    var d = new Date(iso);
+    if (isNaN(d)) return "";
+    var p = function (n) { return (n < 10 ? "0" : "") + n; };
+    return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate()) + "T" + p(d.getHours()) + ":" + p(d.getMinutes());
+  }
+  function fromLocalInput(v) { return v ? new Date(v).toISOString() : ""; }
+
+  /**
+   * The job form. job = the saved job (edit) or null (new); input = what the model passed (prefill, overrides the
+   * saved values); error = why the model's own call failed.
+   */
+  function openEditor(job, input, error) {
+    input = input || {};
+    var isNew = !job;
+    var s = (job && job.schedule) || {};
+    var out = (job && job.output) || {};
+    var nt = (job && job.notify) || {};
+    var pick = function (key, saved, dflt) { return input[key] !== undefined ? input[key] : saved !== undefined && saved !== null ? saved : dflt; };
+
+    var v = {
+      datasource: pick("datasource", job && job.datasource, ""),
+      schema: pick("schema", job && job.schema, ""),
+      name: pick("name", job && job.name, ""),
+      statement: pick("statement", job && job.statement, ""),
+      cronExp: pick("cronExp", s.cronExp, ""),
+      startAt: pick("startAt", s.startAt, ""),
+      endAt: pick("endAt", s.endAt, ""),
+      format: pick("format", out.format, "csv"),
+      fileName: pick("fileName", out.fileName, ""),
+      showHeaders: pick("showHeaders", out.showHeaders, true),
+      separator: pick("separator", out.separator, ","),
+      charset: pick("charset", out.charset, "UTF-8"),
+      compression: pick("compression", out.compression, "none"),
+      notifyOnSuccess: pick("notifyOnSuccess", nt.onSuccess, false),
+      notifyOnFailure: pick("notifyOnFailure", nt.onFailure, false),
+      delivery: input.delivery !== undefined ? (/mail/i.test(input.delivery) ? "email" : "fileManager")
+        : input.emailTo ? "email" : (job && job.delivery && job.delivery.type) || "fileManager",
+      emailTo: input.emailTo !== undefined ? input.emailTo
+        : job && job.delivery && job.delivery.type === "email" ? (job.delivery.target || "") : ""
+    };
+    // the File Manager and e-mail can be chosen here; SFTP, S3 and SharePoint stay as set in DBHawk
+    var deliveryFixed = v.delivery !== "fileManager" && v.delivery !== "email";
+    // the saved job: Save sends only what differs from it (what the model asked to change counts as a change)
+    var original = isNew ? null : {
+      schema: job.schema, name: job.name, statement: job.statement, cronExp: s.cronExp, startAt: s.startAt, endAt: s.endAt,
+      format: out.format, fileName: out.fileName, showHeaders: out.showHeaders !== false, separator: out.separator, charset: out.charset,
+      compression: out.compression, notifyOnSuccess: !!nt.onSuccess, notifyOnFailure: !!nt.onFailure,
+      delivery: (job.delivery && job.delivery.type) || "fileManager",
+      emailTo: job.delivery && job.delivery.type === "email" ? (job.delivery.target || "") : ""
+    };
+    var sched = parseCron(v.cronExp);
+    if (sched.kind === "custom" && !v.cronExp) sched.kind = "daily";
+
+    // fields
+    var dsSelect = h("select", { class: "wide", disabled: !isNew }, h("option", { value: "" }, isNew ? "Choose a datasource…" : v.datasource));
+    var schemaInput = h("input", { type: "text", class: "wide", list: "schemas", value: v.schema, placeholder: "Default schema of the connection" });
+    var schemaList = h("datalist", { id: "schemas" });
+    var nameInput = h("input", { type: "text", class: "wide", value: v.name, maxlength: 200, placeholder: "e.g. daily_orders_export" });
+    var sqlInput = h("textarea", { spellcheck: "false", placeholder: "SELECT …" }, v.statement || "");
+    sqlInput.value = v.statement || "";
+
+    var kindSelect = h("select", null, [["minutes", "Every N minutes"], ["hourly", "Every hour"], ["daily", "Every day"], ["weekdays", "Every weekday (Mon–Fri)"],
+      ["weekly", "Every week on…"], ["monthly", "Every month on day…"], ["custom", "Custom cron expression"]].map(function (o) { return h("option", { value: o[0] }, o[1]); }));
+    kindSelect.value = sched.kind;
+    var everyInput = h("input", { type: "number", min: 1, max: 59, value: sched.every, style: "width:64px" });
+    var timeInput = h("input", { type: "time", value: sched.time });
+    var dayInput = h("input", { type: "number", min: 1, max: 31, value: sched.day, style: "width:64px" });
+    var dayBoxes = DAYS.map(function (d) { return h("input", { type: "checkbox", value: d, checked: sched.days.indexOf(d) >= 0 }); });
+    var daysRow = h("span", { class: "days" }, DAYS.map(function (d, i) { return h("label", null, dayBoxes[i], d.charAt(0) + d.slice(1).toLowerCase()); }));
+    var cronInput = h("input", { type: "text", class: "cronline", value: v.cronExp, style: "width:200px", placeholder: "0 0 8 ? * MON-FRI" });
+    var cronInfo = h("div", { class: "small muted" });
+    var startInput = h("input", { type: "datetime-local", value: toLocalInput(v.startAt) });
+    var endInput = h("input", { type: "datetime-local", value: toLocalInput(v.endAt) });
+
+    var formatSelect = h("select", null, ["csv", "txt", "html", "pdf", "xlsx", "json", "parquet"].map(function (f) { return h("option", { value: f }, f); }));
+    formatSelect.value = v.format || "csv";
+    var compressionSelect = h("select", null, [["none", "None"], ["zip", "zip"], ["gz", "gz"]].map(function (o) { return h("option", { value: o[0] }, o[1]); }));
+    compressionSelect.value = v.compression || "none";
+    var fileInput = h("input", { type: "text", class: "wide cronline", value: v.fileName, placeholder: "{job_name}_{yyyy-MM-dd-HH-mm-ss}" });
+    var headersBox = h("input", { type: "checkbox", checked: v.showHeaders !== false });
+    var sepInput = h("input", { type: "text", value: v.separator, style: "width:50px" });
+    var charsetInput = h("input", { type: "text", value: v.charset, style: "width:110px" });
+    var deliverySelect = h("select", { disabled: deliveryFixed }, deliveryFixed
+      ? h("option", { value: v.delivery }, deliveryText({ type: v.delivery }))
+      : [h("option", { value: "fileManager" }, "DBHawk File Manager"), h("option", { value: "email" }, "E-mail")]);
+    deliverySelect.value = v.delivery;
+    var emailInput = h("input", { type: "text", class: "wide", value: v.emailTo, placeholder: "your own address, or a@example.com, b@example.com" });
+    var emailRow = h("div", null, emailInput, h("div", { class: "small muted" },
+      "Comma separated. Anyone but you gets the data too, so DBHawk asks you to confirm; only domains DBHawk allows."));
+    var emailLabel = h("label", null, "E-mail to");
+    function refreshDelivery() { emailLabel.hidden = emailRow.hidden = deliverySelect.value !== "email"; reportSize(); }
+    deliverySelect.addEventListener("change", refreshDelivery);
+    var okBox = h("input", { type: "checkbox", checked: !!v.notifyOnSuccess });
+    var failBox = h("input", { type: "checkbox", checked: !!v.notifyOnFailure });
+
+    var errorBox = h("div");
+    if (error) append(errorBox, banner("err", error));
+
+    function currentCron() {
+      var kind = kindSelect.value;
+      if (kind === "custom") return cronInput.value.trim();
+      return buildCron(kind, { time: timeInput.value, every: everyInput.value, day: dayInput.value,
+        days: dayBoxes.filter(function (b) { return b.checked; }).map(function (b) { return b.value; }) });
+    }
+    var explainTimer = null, explainSeq = 0;
+    function refreshSchedule() {
+      var kind = kindSelect.value;
+      everyWrap.hidden = kind !== "minutes";
+      timeWrap.hidden = kind === "minutes" || kind === "custom";
+      daysRow.hidden = kind !== "weekly";
+      dayWrap.hidden = kind !== "monthly";
+      cronInput.readOnly = kind !== "custom";
+      if (kind !== "custom") cronInput.value = currentCron();
+      clearTimeout(explainTimer);
+      var seq = ++explainSeq;
+      explainTimer = setTimeout(function () {
+        var cron = currentCron();
+        if (!cron) { cronInfo.textContent = ""; return; }
+        callTool("explain_cron", { cronExp: cron }).then(function (c) {
+          if (seq !== explainSeq) return;
+          cronInfo.textContent = "";
+          if (c && c.valid === false) append(cronInfo, h("span", { style: "color:var(--danger)" }, c.error || "Not a valid cron expression"));
+          else if (c) append(cronInfo, (c.description || "") + (c.nextRun ? " · next run " + fmtTime(c.nextRun) : ""));
+          reportSize();
+        }, function (e) { if (seq === explainSeq) { cronInfo.textContent = e.message; reportSize(); } });
+      }, 350);
+      reportSize();
+    }
+    [kindSelect, everyInput, timeInput, dayInput, cronInput].forEach(function (el) { el.addEventListener("input", refreshSchedule); el.addEventListener("change", refreshSchedule); });
+    dayBoxes.forEach(function (b) { b.addEventListener("change", refreshSchedule); });
+    var everyWrap = h("span", null, "every ", everyInput, " minutes");
+    var timeWrap = h("span", null, "at ", timeInput);
+    var dayWrap = h("span", null, "day ", dayInput);
+
+    function loadSchemas() {
+      schemaList.textContent = "";
+      var ds = isNew ? dsSelect.value : v.datasource;
+      if (!ds) return;
+      callTool("list_schemas", { datasource: ds }).then(function (list) {
+        (Array.isArray(list) ? list : []).forEach(function (sc) { append(schemaList, h("option", { value: sc })); });
+      }, function () {});
+    }
+    if (isNew) {
+      loadDatasources().then(function (list) {
+        list.forEach(function (ds) { append(dsSelect, h("option", { value: ds.name }, ds.name + (ds.readOnly ? " (read-only)" : ""))); });
+        if (v.datasource) dsSelect.value = v.datasource;
+        if (!dsSelect.value && list.length === 1) dsSelect.value = list[0].name;
+        loadSchemas();
+      }, function (e) { append(errorBox, banner("err", "Could not list your datasources: " + e.message)); });
+      dsSelect.addEventListener("change", loadSchemas);
+    } else {
+      loadSchemas();
+    }
+
+    function collect() {
+      return {
+        datasource: isNew ? dsSelect.value : v.datasource,
+        schema: schemaInput.value.trim(),
+        name: nameInput.value.trim(),
+        statement: sqlInput.value.trim(),
+        cronExp: currentCron(),
+        startAt: fromLocalInput(startInput.value),
+        endAt: fromLocalInput(endInput.value),
+        format: formatSelect.value,
+        fileName: fileInput.value.trim(),
+        showHeaders: headersBox.checked,
+        separator: sepInput.value,
+        charset: charsetInput.value.trim(),
+        compression: compressionSelect.value,
+        notifyOnSuccess: okBox.checked,
+        notifyOnFailure: failBox.checked,
+        delivery: deliverySelect.value,
+        emailTo: deliverySelect.value === "email" ? emailInput.value.trim() : ""
+      };
+    }
+
+    var save = h("button", { class: "primary", onclick: function () {
+      var f = collect();
+      errorBox.textContent = "";
+      var missing = [];
+      if (isNew && !f.datasource) missing.push("datasource");
+      if (!f.name) missing.push("name");
+      if (!f.statement) missing.push("SQL");
+      if (!f.cronExp) missing.push("schedule");
+      if (missing.length) { append(errorBox, banner("err", "Please fill in: " + missing.join(", ") + ".")); reportSize(); return; }
+
+      var args, tool;
+      if (isNew) {
+        tool = "create_job";
+        args = {};
+        for (var key in f) if (f[key] !== "" || key === "statement") args[key] = f[key];
+        if (f.delivery !== "email") { delete args.delivery; delete args.emailTo; }
+      } else {
+        tool = "update_job";
+        args = { jobId: job.id };
+        for (var key2 in f) {
+          if (key2 === "datasource" || key2 === "delivery" || key2 === "emailTo") continue;
+          var before = original[key2], now = f[key2];
+          var same = key2 === "startAt" || key2 === "endAt"
+            ? toLocalInput(before) === toLocalInput(now)
+            : (before == null ? "" : String(before)) === (now == null ? "" : String(now));
+          if (!same) {
+            if (now === "" && key2 !== "endAt") continue; // an emptied field keeps its value; endAt "" clears it
+            args[key2] = now;
+          }
+        }
+        if (!deliveryFixed) {
+          if (f.delivery !== original.delivery) args.delivery = f.delivery;
+          // for e-mail, an emptied list means your own address
+          if (f.delivery === "email" && f.emailTo !== original.emailTo) args.emailTo = f.emailTo;
+        }
+        if (Object.keys(args).length === 1) { state.notice = ["ok", "Nothing changed."]; openDetail(job.id, job); return; }
+      }
+      // clicking Create / Save on this form is the user's approval of exactly this job
+      args.confirm = true;
+      busy(save, callTool(tool, args).then(function (data) {
+        if (data && data.confirmationRequired) { openPending(data, args); return; }
+        var saved = data && data.job;
+        tellModel("The user " + (isNew ? "created" : "changed") + " job " + (saved ? saved.id + " \"" + saved.name + "\"" : "") +
+          " on the screen (schedule " + f.cronExp + ", " + f.format + " " +
+          (f.delivery === "email" ? "by e-mail to " + (f.emailTo || "the user's own address") : "to the File Manager") + ").");
+        route(data, tool, args);
+      }, function (e) { append(errorBox, banner("err", e.message)); reportSize(); }));
+    } }, isNew ? "Create job" : "Save changes");
+
+    var cancel = h("button", { onclick: function () { if (isNew) openList(); else openDetail(job.id, job); } }, "Cancel");
+
+    show([
+      h("div", { class: "bar" }, h("h1", null, isNew ? "New scheduled job" : "Edit job " + job.name), h("span", { class: "spacer" })),
+      errorBox,
+      h("div", { class: "form" },
+        h("label", null, "Datasource"), dsSelect,
+        h("label", null, "Schema"), h("div", null, schemaInput, schemaList),
+        h("label", null, "Job name"), nameInput,
+        h("label", { class: "full" }, "SQL (one statement)"), h("div", { class: "full" }, sqlInput),
+        h("label", null, "Schedule"), h("div", { class: "row" }, kindSelect, everyWrap, timeWrap, dayWrap, daysRow),
+        h("label", null, "Cron"), h("div", null, h("div", { class: "row" }, cronInput), cronInfo),
+        h("label", null, "Format"), h("div", { class: "row" }, formatSelect, h("span", { class: "muted" }, "compression"), compressionSelect,
+          h("label", null, headersBox, " header row")),
+        h("label", null, "Deliver to"), deliverySelect,
+        emailLabel, emailRow,
+        h("label", null, "Notify me"), h("div", { class: "row" }, h("label", null, okBox, " on success"), h("label", null, failBox, " on failure"))),
+      h("details", null, h("summary", null, "More options"),
+        h("div", { class: "form" },
+          h("label", null, "First run after"), h("div", { class: "row" }, startInput, h("span", { class: "muted small" }, "empty = now")),
+          h("label", null, "No runs after"), h("div", { class: "row" }, endInput, h("span", { class: "muted small" }, "empty = no end")),
+          h("label", null, "File name"), fileInput,
+          h("label", null, "Separator / charset"), h("div", { class: "row" }, sepInput, charsetInput))),
+      h("p", { class: "muted small" }, (isNew ? "Create job" : "Save changes") +
+        " saves the job in DBHawk right away; your MCP tier still checks the SQL."),
+      h("div", { class: "bar" }, h("span", { class: "spacer" }), cancel, save)
+    ]);
+    refreshSchedule();
+    refreshDelivery();
+    (isNew && !v.name ? nameInput : sqlInput).focus();
+  }
+
+  // ── start ───────────────────────────────────────────────────────────────────────────────────────────
+  if (window.parent === window) {
+    root.textContent = "This is the DBHawk job screen of the DBHawk MCP server; it opens inside an MCP client.";
+    return;
+  }
+  if (window.ResizeObserver) new ResizeObserver(reportSize).observe(document.body);
+  rpc("ui/initialize", {
+    protocolVersion: PROTOCOL,
+    appInfo: { name: "DBHawk Job Scheduler", version: "7.1.1" },
+    appCapabilities: { availableDisplayModes: ["inline", "fullscreen"] }
+  }).then(function (result) {
+    applyContext((result && result.hostContext) || {});
+    host.initialized = true;
+    notify("ui/notifications/initialized", {});
+  }, function (e) {
+    root.textContent = "The MCP client did not start the job screen: " + e.message;
+  });
+})();
+</script>
+</body>
+</html>

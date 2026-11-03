@@ -80,6 +80,12 @@ Claude Desktop users can also install the one-click extension from the [releases
 | `text_to_sql` | DBHawk AI: turn a question into SQL |
 | `optimize_sql` | DBHawk AI: suggestions to speed up a query |
 | `format_sql` | Pretty-print a SQL statement |
+| `list_jobs` / `get_job` | Your scheduled jobs, and one job in full |
+| `list_job_executions` | Latest runs of a job and the end of their logs - why did it fail? |
+| `explain_cron` | Check and describe a cron expression |
+| `create_job` / `update_job` | Schedule an export of ONE statement into your File Manager, or change one (asks you first) |
+| `pause_job` / `resume_job` / `delete_job` | Stop, restart or remove one of your jobs (resume and delete ask you first) |
+| `run_job` / `interrupt_job` | Run a job now, or stop a running one (asks you first) |
 
 ## More
 
