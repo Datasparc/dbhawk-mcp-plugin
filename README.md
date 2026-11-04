@@ -169,21 +169,27 @@ Desktop doesn't understand plugins or `userConfig` — pass the three values as 
 The job tools need a DBHawk server with the MCP job scheduler (migration 87 adds `view_jobs`, `manage_jobs` and
 `run_jobs`, granted to the *Destructive / admin* tier only) and the Job Scheduler license.
 
-The job tools are interactive where the client allows it:
+The job tools are interactive where the client allows it, but always in plain text:
 
-- **Job screen** (clients that show MCP Apps, e.g. Claude Desktop with the `.mcpb`): every job tool but
-  `explain_cron` opens `ui://dbhawk/jobs` - your jobs with Run / Pause / Resume / Edit / Delete, a job with its SQL,
-  schedule and runs, and a form for new and changed jobs with a schedule builder. A click there is your approval.
-- **Forms** (clients that support MCP elicitation and show no job screen): `create_job` asks you for whatever the model left
-  out (datasource, name, SQL, schedule, format), `update_job` with only a job id opens the job in a form, and a call
-  your MCP tier wants confirmed asks you in a form. Declining changes nothing.
+- **Job screen (MCP Apps): off.** The HTML screen is commented out - no `ui://dbhawk/jobs` resource, and no tool
+  carries `_meta.ui.resourceUri`. A client that shows MCP Apps is asked in a form like any other. To bring it back,
+  uncomment the marked blocks in `mcp-server/index.js`.
+- **Forms** (clients that support MCP elicitation): `create_job` asks you for whatever the model left out
+  (datasource, name, SQL, schedule, format, delivery). The schedule and the output are never taken from the model
+  unseen: when it brings a valid cron, a format **and** a delivery, you get **one** question instead ("Schedule ...
+  Result ... Delivery ... Is that right?"), and clearing the box opens the whole form on what it proposed.
+  `update_job` with only a job id opens the job in a form, and a call your MCP tier wants confirmed asks you in a
+  form. Declining changes nothing.
 - **Chat dialog** (every other client): `create_job` is filled in with you in the chat, one question at a time -
-  DBHawk answers an incomplete job with the next question (datasource, name, SQL, schedule, result file) instead of
-  an error, and the assistant puts it to you and calls the tool again with your answer. A cron DBHawk cannot read is
-  asked again with the reason, and the confirmation your tier wants is still asked before anything is created.
+  DBHawk answers with the next question (datasource, name, SQL, schedule, format, delivery) instead of an error, and
+  the assistant puts it to you and calls the tool again with your answer. Each is asked only where the model has not
+  been told it; the schedule, the format and the delivery are never taken from it unseen - where it has all three,
+  they go to you as **one** question ("Is that right?"), and if you want one of them changed the assistant calls
+  again without it and DBHawk asks you for it. A cron DBHawk cannot read is asked again with the reason, and the
+  confirmation your tier wants is still asked before anything is created.
 
-The screen (`mcp-server/ui/jobs.html`) is a copy of DBHawk's own (`src/main/resources/mcp/ui/jobs.html`); keep them
-in step.
+`mcp-server/ui/jobs.html` stays in the repository (a copy of DBHawk's own
+`src/main/resources/mcp/ui/jobs.html`) but is no longer bundled or served.
 
 ### Reads, writes and MCP tiers
 

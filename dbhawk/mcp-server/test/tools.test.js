@@ -275,13 +275,15 @@ test("explain_cron posts the expression", async () => {
 });
 
 test("create_job posts the job with the default datasource and confirms only when asked", async () => {
+  // the marker says the user has already been asked about the schedule, the format and the delivery
   const job = { name: "Daily", statement: "SELECT 1", cronExp: "0 0 8 * * ?" };
-  await call("create_job", job);
+  const asked = { dialog: "cronExp,format,delivery" };
+  await call("create_job", { ...job, ...asked });
   assert.equal(fake.last().method, "POST");
   assert.equal(fake.last().path, `${MCP}/jobs`);
   assert.deepEqual(fake.last().body, { ...job, datasource: "pg-demo" });
 
-  await call("create_job", { ...job, datasource: "ora", format: "xlsx", confirm: true });
+  await call("create_job", { ...job, ...asked, datasource: "ora", format: "xlsx", confirm: true });
   assert.deepEqual(fake.last().body, { ...job, datasource: "ora", format: "xlsx", confirm: true });
 });
 

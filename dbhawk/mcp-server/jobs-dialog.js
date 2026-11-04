@@ -1,10 +1,12 @@
 /**
- * Creating a job as a conversation, for an MCP client that has neither forms (elicitation) nor the job screen - the
- * same flow as DBHawk's own MCP server (McpJobDialog). The model is the one talking to the user, so the model asks;
- * DBHawk says what to ask and when. A create_job that is missing something is not an error: it is answered with the
- * next question (questionRequired), the model puts that question to the user and calls create_job again with their
- * answer. Nothing is kept here: every answer travels in the tool arguments, and the `dialog` argument carries back
- * what has been asked already, so a job the model specifies in full is still created in one call.
+ * Creating a job as a conversation, for an MCP client without forms (elicitation) - the same flow as DBHawk's own
+ * MCP server (McpJobDialog). The model is the one talking to the user, so the model asks; DBHawk says what to ask
+ * and when. A create_job still to be asked about is not an error: it is answered with the next question
+ * (questionRequired), the model puts that question to the user and calls create_job again with their answer.
+ * Every question is asked only where the model has not been told the answer, and the schedule, the format and the
+ * delivery are never taken from the model unseen: a job that arrives with all three is put to the user in ONE
+ * question ("Is that right?"), and a field they want changed is asked on its own when the model calls again without
+ * it. Nothing is kept here: every answer travels in the tool arguments, and `dialog` carries back what was asked.
  */
 
 export const DIALOG_TOOLS = new Set(["create_job"]);
@@ -13,8 +15,11 @@ export const DIALOG_TOOLS = new Set(["create_job"]);
 export const TOKEN = "dialog";
 
 export const FORMATS = ["csv", "txt", "html", "pdf", "xlsx", "json", "parquet"];
-/** Not an argument of its own: the question that fills format, delivery and emailTo. */
-const OUTPUT = "output";
+export const TO_FILE_MANAGER = "DBHawk File Manager";
+export const BY_EMAIL = "E-mail";
+export const DELIVERIES = [TO_FILE_MANAGER, BY_EMAIL];
+/** Not an argument of its own: the one question that puts a schedule and output the model brought to the user. */
+const SETUP = "setup";
 
 const blank = (v) => v === undefined || v === null || String(v).trim() === "";
 const text = (v) => (blank(v) ? undefined : String(v).trim());
@@ -38,6 +43,34 @@ export function createDialog({ call, defaultDatasource }) {
     return null;
   }
 
+  /** How the scheduler reads the cron the model proposed, or the expression itself when it says nothing. */
+  async function describeCron(cron) {
+    const explained = (await call("explain_cron", { cronExp: cron })) || {};
+    return text(explained.description) ?? cron;
+  }
+
+  /** Where the file goes, as part of a sentence: "to your DBHawk File Manager" / "by e-mail to ...". */
+  function deliveryPhrase(args) {
+    const delivery = text(args.delivery);
+    if (delivery !== undefined && /^email$/i.test(delivery)) {
+      const emailTo = text(args.emailTo);
+      return `by e-mail to ${emailTo === undefined ? "your own address" : emailTo}`;
+    }
+    return "to your DBHawk File Manager";
+  }
+
+  /** What the model already put down for the delivery, as the user would hear it. */
+  function deliverySoFar(args) {
+    const delivery = text(args.delivery);
+    if (delivery === undefined) return undefined;
+    if (!/mail/i.test(delivery)) return TO_FILE_MANAGER;
+    const emailTo = text(args.emailTo);
+    return `${BY_EMAIL}${emailTo === undefined ? " to your own address" : " to " + emailTo}`;
+  }
+
+  /** The value the model proposed, offered to the user so they can keep it or say something else. */
+  const proposed = (value) => (value === undefined ? "" : ` So far it is "${value}" - ask whether that is what they want.`);
+
   /** The fields DBHawk has already asked about, from the token of the previous answer. */
   function asked(token) {
     const value = text(token);
@@ -56,11 +89,21 @@ export function createDialog({ call, defaultDatasource }) {
         return `${ask}${again} The answer goes into 'datasource' and has to be one of 'options'.`;
       case "cronExp":
         return `${ask}${again} Turn what they say into a Quartz cron expression for 'cronExp' (check it with explain_cron first); DBHawk asks again if it is not valid.`;
-      case OUTPUT:
+      case SETUP:
         return (
-          `${ask}${again} Their answer goes into 'format' (one of 'options'), and into 'delivery' ("fileManager" or ` +
-          `"email") with 'emailTo' when they want it e-mailed - an empty 'emailTo' means their own address. If the ` +
-          `defaults suit them, call again with format="csv" and delivery="fileManager".`
+          `${ask}If they are happy with it, call create_job again with the arguments in 'job' and ${TOKEN}="${marker}" ` +
+          `unchanged. If they want the schedule, the format or the delivery changed, call it the same way but ` +
+          `WITHOUT that argument ('cronExp', 'format' or 'delivery'), and DBHawk asks them for it.`
+        );
+      case "format":
+        return (
+          `${ask}${again} The answer goes into 'format' and has to be one of 'options'; keep the value already in ` +
+          `'job' when the user is happy with it.`
+        );
+      case "delivery":
+        return (
+          `${ask}${again} Their answer goes into 'delivery' ("fileManager" or "email") with 'emailTo' when they ` +
+          `want it e-mailed - an empty 'emailTo' means their own address.`
         );
       default:
         return `${ask}${again} The answer goes into '${field}'.`;
@@ -102,10 +145,16 @@ export function createDialog({ call, defaultDatasource }) {
         soFar
       );
     }
-    const cron = text(args.cronExp);
+    // The schedule, the format and the delivery are the user's to choose, never the model's to decide. A job whose
+    // three the model brings along is put to the user in ONE question; anything left out is asked on its own, and so
+    // is a field the user then wants changed (the model calls again without it).
+    let cron = text(args.cronExp);
     const problem = cron === undefined ? null : await cronProblem(cron);
-    if (cron === undefined || problem) {
+    if (problem) {
       delete args.cronExp;
+      cron = undefined;
+    }
+    if (cron === undefined) {
       return question(
         "cronExp",
         `${problem ? ended(problem) + " " : ""}How often should the job run, and at what time? For example "every weekday at 8:00" or "on the 1st of every month at 23:30".`,
@@ -114,11 +163,46 @@ export function createDialog({ call, defaultDatasource }) {
         soFar
       );
     }
-    if (soFar.length && !soFar.includes(OUTPUT) && blank(args.format) && blank(args.delivery)) {
+    const untouched = !["cronExp", "format", "delivery", SETUP].some((f) => soFar.includes(f));
+    const format = text(args.format);
+    const delivery = deliverySoFar(args);
+    if (untouched && format !== undefined && delivery !== undefined) {
       return question(
-        OUTPUT,
-        "In which format should the result file be, and where should it go? DBHawk writes csv into your File Manager unless you say otherwise.",
-        FORMATS,
+        SETUP,
+        `The job would run ${await describeCron(cron)} and export ${format} ${deliveryPhrase(args)}. Is that right?`,
+        null,
+        args,
+        soFar
+      );
+    }
+    if (soFar.includes(SETUP)) {
+      // the user has seen the three together; only what they asked to change comes back empty
+      if (format === undefined) {
+        return question("format", "In which format should the result file be?", FORMATS, args, soFar);
+      }
+      if (delivery === undefined) {
+        return question("delivery", "Where should the result file go - into your DBHawk File Manager, or by e-mail?", DELIVERIES, args, soFar);
+      }
+      return null;
+    }
+    if (!soFar.includes("cronExp")) {
+      return question(
+        "cronExp",
+        `How often should the job run, and at what time? For example "every weekday at 8:00" or "on the 1st of every month at 23:30".` +
+          proposed(await describeCron(cron)),
+        null,
+        args,
+        soFar
+      );
+    }
+    if (!soFar.includes("format")) {
+      return question("format", "In which format should the result file be?" + proposed(format), FORMATS, args, soFar);
+    }
+    if (!soFar.includes("delivery")) {
+      return question(
+        "delivery",
+        "Where should the result file go - into your DBHawk File Manager, or by e-mail?" + proposed(delivery),
+        DELIVERIES,
         args,
         soFar
       );

@@ -1,7 +1,7 @@
 /**
- * The interactive job tools: the job screen (MCP App) as a resource the job tools point at, forms (elicitation)
- * for a client that fills them in, and the chat dialog for a client with neither - what is asked, and what DBHawk
- * then gets.
+ * The interactive job tools: forms (elicitation) for a client that fills them in and the chat dialog for a client
+ * without them - what is asked, and what DBHawk then gets. The HTML job screen (MCP App) is commented out, so an
+ * MCP Apps client is asked in a form like any other.
  */
 import { test, before, after, beforeEach } from "node:test";
 import assert from "node:assert/strict";
@@ -57,7 +57,12 @@ before(async () => {
   chatClient = await startClient(fake.baseUrl, { DBHAWK_DEFAULT_DATASOURCE: "" });
   uiClient = await startClient(fake.baseUrl, {}, {
     capabilities: { elicitation: {}, extensions: { "io.modelcontextprotocol/ui": { mimeTypes: ["text/html;profile=mcp-app"] } } },
-    onElicit: () => assert.fail("a client with the job screen gets no forms"),
+    // the job screen is off, so an MCP Apps client is asked in a form like any other forms client
+    onElicit: (params) => {
+      asked.push(params);
+      const answer = answers.shift();
+      return answer ? { action: "accept", content: answer } : { action: "decline" };
+    },
   });
 });
 
@@ -79,24 +84,22 @@ const posts = (path) => fake.mcpCalls().filter((c) => c.path === path && c.metho
 
 // ── the job screen ─────────────────────────────────────────────────────
 
-test("the job screen is a resource and the job tools open it", async () => {
-  const { resources } = await plainClient.listResources();
-  const screen = resources.find((r) => r.uri === UI);
-  assert.equal(screen.mimeType, "text/html;profile=mcp-app");
-
-  const { contents } = await plainClient.readResource({ uri: UI });
-  assert.ok(contents[0].text.startsWith("<!DOCTYPE html>"));
-  assert.ok(contents[0].text.includes("ui/initialize"));
-  assert.deepEqual(contents[0]._meta.ui.csp, { connectDomains: [], resourceDomains: [] });
+test("the job screen is off: no resource, and no tool opens one", async () => {
+  // with the resource commented out the server declares no resources capability at all
+  let resources = [];
+  try {
+    resources = (await plainClient.listResources()).resources;
+  } catch (e) {
+    assert.match(String(e), /Method not found|-32601/);
+  }
+  assert.deepEqual(resources, []);
+  await assert.rejects(() => plainClient.readResource({ uri: UI }));
 
   const { tools } = await plainClient.listTools();
   for (const name of ["list_jobs", "get_job", "list_job_executions", "create_job", "update_job", "delete_job",
-    "pause_job", "resume_job", "run_job", "interrupt_job"]) {
-    const tool = tools.find((t) => t.name === name);
-    assert.equal(tool._meta?.ui?.resourceUri, UI, name);
-    assert.equal(tool._meta?.["ui/resourceUri"], UI, name);
+    "pause_job", "resume_job", "run_job", "interrupt_job", "explain_cron"]) {
+    assert.equal(tools.find((t) => t.name === name)._meta, undefined, name);
   }
-  assert.equal(tools.find((t) => t.name === "explain_cron")._meta, undefined);
 });
 
 // ── tools/list per client ──────────────────────────────────────────────
@@ -109,7 +112,7 @@ test("a client that is asked for the missing fields gets a create_job without re
   assert.deepEqual(await required(plainClient), []);
   assert.match((await createJob(plainClient)).description, /ONE question at a time/);
   assert.ok((await createJob(plainClient)).inputSchema.properties.dialog, "the dialog marker travels with the answers");
-  assert.deepEqual((await required(uiClient)).sort(), ["cronExp", "name", "statement"], "the screen asks, not the model");
+  assert.deepEqual(await required(uiClient), [], "the screen is off: an MCP Apps client is asked in a form");
 });
 
 // ── the chat dialog ────────────────────────────────────────────────────
@@ -117,14 +120,16 @@ test("a client that is asked for the missing fields gets a create_job without re
 test("create_job with no arguments is filled in with the user, one question at a time", async () => {
   const fields = [];
   let args = {};
-  for (const answer of [{ name: "orders" }, { statement: "select * from orders" }, { cronExp: "0 30 6 ? * MON-FRI" }, { format: "xlsx" }]) {
+  for (const answer of [{ name: "orders" }, { statement: "select * from orders" }, { cronExp: "0 30 6 ? * MON-FRI" },
+    { format: "xlsx" }, { delivery: "fileManager" }]) {
     const question = jsonOf(await plainClient.callTool({ name: "create_job", arguments: args }));
     assert.equal(question.questionRequired, true, JSON.stringify(question));
     assert.equal(question.created, false);
     fields.push(question.field);
     args = { ...question.job, dialog: question.dialog, ...answer };
   }
-  assert.deepEqual(fields, ["name", "statement", "cronExp", "output"], "DBHAWK_DEFAULT_DATASOURCE needs no question");
+  assert.deepEqual(fields, ["name", "statement", "cronExp", "format", "delivery"],
+    "DBHAWK_DEFAULT_DATASOURCE needs no question; the schedule and the output are always asked");
   assert.equal(fake.calls.filter((c) => c.method === "POST" && c.path === `${MCP}/jobs`).length, 0, "nothing is created while a question is open");
 
   const result = jsonOf(await plainClient.callTool({ name: "create_job", arguments: args }));
@@ -138,7 +143,20 @@ test("create_job with no arguments is filled in with the user, one question at a
     statement: "select * from orders",
     cronExp: "0 30 6 ? * MON-FRI",
     format: "xlsx",
+    delivery: "fileManager",
   });
+});
+
+test("a schedule the model brings along is put to the user as a suggestion", async () => {
+  const question = jsonOf(await plainClient.callTool({
+    name: "create_job",
+    arguments: { name: "orders", statement: "select 1", cronExp: "0 30 6 ? * MON-FRI" },
+  }));
+
+  assert.equal(question.field, "cronExp");
+  assert.match(question.question, /at 06:30 on weekdays/);
+  assert.equal(question.job.cronExp, "0 30 6 ? * MON-FRI", "the suggestion travels on, so the user can keep it");
+  assert.equal(fake.calls.filter((c) => c.method === "POST" && c.path === `${MCP}/jobs`).length, 0);
 });
 
 test("the first question of a chat without a default datasource offers the user's own", async () => {
@@ -150,10 +168,39 @@ test("the first question of a chat without a default datasource offers the user'
   assert.match(question.message, /do not answer it yourself/);
 });
 
+test("a schedule and output the model brings in full are put in one question", async () => {
+  const args = { name: "orders", statement: "select 1", cronExp: "0 30 6 ? * MON-FRI", format: "xlsx",
+    delivery: "email", emailTo: "anna@example.com" };
+
+  const question = jsonOf(await plainClient.callTool({ name: "create_job", arguments: args }));
+
+  assert.equal(question.field, "setup");
+  assert.match(question.question, /at 06:30 on weekdays/);
+  assert.match(question.question, /export xlsx by e-mail to anna@example\.com/);
+  assert.match(question.question, /Is that right\?$/);
+  assert.equal(fake.calls.filter((c) => c.method === "POST" && c.path === `${MCP}/jobs`).length, 0);
+
+  // the user is happy: the same arguments with the marker create the job, with nothing asked again
+  const result = jsonOf(await plainClient.callTool({ name: "create_job", arguments: { ...args, dialog: question.dialog } }));
+  assert.equal(result.confirmationRequired, true, "the tier still has the last word");
+  assert.equal(posts(`${MCP}/jobs`)[0].body.format, "xlsx");
+});
+
+test("after the one question only the field the user wants changed is asked", async () => {
+  const question = jsonOf(await plainClient.callTool({
+    name: "create_job",
+    // the model calls again without 'format', because that is what the user wants changed
+    arguments: { name: "orders", statement: "select 1", cronExp: "0 30 6 ? * MON-FRI", delivery: "email", dialog: "setup" },
+  }));
+
+  assert.equal(question.field, "format");
+  assert.deepEqual(question.options, ["csv", "txt", "html", "pdf", "xlsx", "json", "parquet"]);
+});
+
 test("a cron the scheduler cannot read is asked again with what is wrong", async () => {
   const question = jsonOf(await plainClient.callTool({
     name: "create_job",
-    arguments: { name: "orders", statement: "select 1", cronExp: "bad" },
+    arguments: { name: "orders", statement: "select 1", cronExp: "bad", dialog: "name,statement,cronExp" },
   }));
 
   assert.equal(question.field, "cronExp");
@@ -204,6 +251,41 @@ test("e-mail delivery is chosen with the schedule, and a job e-mailing others na
   assert.equal(body.emailTo, "anna@example.com");
 });
 
+test("a schedule and output from the model are one confirmation form, not the whole form", async () => {
+  answers = [{ right: true }, { confirm: true }];
+
+  await formsClient.callTool({
+    name: "create_job",
+    arguments: { datasource: "pg-demo", name: "n", statement: "select 1", cronExp: "0 0 8 * * ?", format: "xlsx",
+      delivery: "email", emailTo: "anna@example.com" },
+  });
+
+  assert.equal(asked.length, 2, "one question, then the tier's confirmation");
+  assert.match(asked[0].message, /at 06:30 on weekdays/);
+  assert.match(asked[0].message, /Result: xlsx/);
+  assert.match(asked[0].message, /Delivery: e-mail to anna@example\.com/);
+  assert.equal(posts(`${MCP}/jobs`)[0].body.cronExp, "0 0 8 * * ?");
+});
+
+test("clearing the box opens the whole schedule form on what the model proposed", async () => {
+  answers = [
+    { right: false },
+    { schedule: EVERY_HOUR, time: "00:15", format: "csv", delivery: TO_FILE_MANAGER },
+    { confirm: true },
+  ];
+
+  await formsClient.callTool({
+    name: "create_job",
+    arguments: { datasource: "pg-demo", name: "n", statement: "select 1", cronExp: "0 0 8 * * ?", format: "xlsx", delivery: "email" },
+  });
+
+  assert.equal(asked[1].requestedSchema.properties.schedule.default, CUSTOM, "the form opens on what the model proposed");
+  assert.equal(asked[1].requestedSchema.properties.cronExp.default, "0 0 8 * * ?");
+  const body = posts(`${MCP}/jobs`)[0].body;
+  assert.equal(body.cronExp, "0 15 * * * ?");
+  assert.equal(body.delivery, "fileManager");
+});
+
 test("the confirmation of a job e-mailing others names the recipients", async () => {
   answers = [{ confirm: true }];
   const original = fake.calls.length;
@@ -215,8 +297,10 @@ test("the confirmation of a job e-mailing others names the recipients", async ()
 });
 
 test("delivery and recipients go to DBHawk as given", async () => {
+  // the marker says the user has been asked about the schedule and the output already
   await plainClient.callTool({ name: "create_job", arguments: { datasource: "pg-demo", name: "n", statement: "select 1",
-    cronExp: "0 0 8 * * ?", delivery: "email", emailTo: "a@example.com, b@example.com", confirm: true } });
+    cronExp: "0 0 8 * * ?", delivery: "email", emailTo: "a@example.com, b@example.com", confirm: true,
+    dialog: "cronExp,format,delivery" } });
   const body = posts(`${MCP}/jobs`)[0].body;
   assert.equal(body.delivery, "email");
   assert.equal(body.emailTo, "a@example.com, b@example.com");
@@ -260,12 +344,13 @@ test("an invalid cron is asked again with the reason", async () => {
   assert.equal(posts(`${MCP}/jobs`)[0].body.cronExp, "0 15 * * * ?");
 });
 
-test("without forms the model gets the confirmation request, as before", async () => {
+test("without forms the model gets the confirmation request; an MCP Apps client is asked in a form", async () => {
   const result = jsonOf(await plainClient.callTool({ name: "run_job", arguments: { jobId: 7 } }));
   assert.equal(result.confirmationRequired, true);
 
+  answers = [{ confirm: true }];
   const ui = jsonOf(await uiClient.callTool({ name: "run_job", arguments: { jobId: 7 } }));
-  assert.equal(ui.confirmationRequired, true);
+  assert.equal(ui.done, true, "the screen is off, so the user approves in a form");
 });
 
 test("cron of the schedule choices", () => {

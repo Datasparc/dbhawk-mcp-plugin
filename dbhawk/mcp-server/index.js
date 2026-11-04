@@ -36,8 +36,8 @@ import { createOAuthSession } from "./oauth.js";
 import { fetchWithRetry } from "./net.js";
 import { WIZARD_TOOLS, createWizard } from "./jobs-wizard.js";
 import { DIALOG_TOOLS, createDialog, TOKEN as DIALOG_TOKEN } from "./jobs-dialog.js";
-// the job screen (MCP App), bundled as text by esbuild (--loader:.html=text)
-import JOBS_HTML from "./ui/jobs.html";
+// the job screen (MCP App) is off - plain text only; uncomment this and the blocks below to bring it back
+// import JOBS_HTML from "./ui/jobs.html";
 
 const RAW_BASE_URL = (process.env.DBHAWK_BASE_URL || "").trim();
 // an optional setting left empty may arrive as the unexpanded "${user_config...}" placeholder: treat it as unset
@@ -622,57 +622,57 @@ server.registerTool(
 
 // ---- Scheduled jobs ------------------------------------------------------------------------------
 //
-// The job tools are interactive where the client allows it, as in the DBHawk Job Scheduler:
-// - a client that shows MCP Apps (Claude Desktop) opens the job screen ui://dbhawk/jobs with every job tool result;
-// - a client that fills in forms (elicitation) is asked for what the model left out and for the confirmation the
-//   MCP tier wants (jobs-wizard.js) - unless it shows the screen, which then does the asking;
-// - a plain chat client is asked by the model itself, one question at a time, with DBHawk choosing the questions
+// The job tools are interactive where the client allows it, as in the DBHawk Job Scheduler, but always in plain
+// text - the HTML job screen (ui://dbhawk/jobs) is commented out everywhere, so no client gets it:
+// - a client that fills in forms (elicitation) is asked for what the model left out, always for the schedule, the
+//   format and the delivery, and for the confirmation the MCP tier wants (jobs-wizard.js);
+// - every other client is asked by the model itself, one question at a time, with DBHawk choosing the questions
 //   (jobs-dialog.js).
 
 /** Pausing only stops runs and is undone by resume_job. */
 const REVERSIBLE = { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false };
 
-const JOBS_UI = "ui://dbhawk/jobs";
-const UI_MIME_TYPE = "text/html;profile=mcp-app";
-const UI_EXTENSION = "io.modelcontextprotocol/ui";
-/** _meta of a tool with the job screen: the current key and the one of the first MCP Apps hosts. */
-const JOBS_UI_META = { ui: { resourceUri: JOBS_UI }, "ui/resourceUri": JOBS_UI };
+// const JOBS_UI = "ui://dbhawk/jobs";
+// const UI_MIME_TYPE = "text/html;profile=mcp-app";
+// const UI_EXTENSION = "io.modelcontextprotocol/ui";
+// /** _meta of a tool with the job screen: the current key and the one of the first MCP Apps hosts. */
+// const JOBS_UI_META = { ui: { resourceUri: JOBS_UI }, "ui/resourceUri": JOBS_UI };
 /** How long a form may stay open. */
 const FORM_TIMEOUT_MS = 10 * 60 * 1000;
 
-server.registerResource(
-  "jobs-screen",
-  JOBS_UI,
-  {
-    title: "DBHawk Job Scheduler",
-    description: "The screen of the job tools: your scheduled jobs, their runs, and the job form.",
-    mimeType: UI_MIME_TYPE,
-  },
-  async (uri) => ({
-    contents: [
-      {
-        uri: uri.href,
-        mimeType: UI_MIME_TYPE,
-        text: JOBS_HTML,
-        // the screen loads nothing from anywhere and talks to DBHawk only through the client's tool calls
-        _meta: { ui: { prefersBorder: true, csp: { connectDomains: [], resourceDomains: [] } } },
-      },
-    ],
-  })
-);
+// the job screen is off: this server offers no resource at all
+// server.registerResource(
+//   "jobs-screen",
+//   JOBS_UI,
+//   {
+//     title: "DBHawk Job Scheduler",
+//     description: "The screen of the job tools: your scheduled jobs, their runs, and the job form.",
+//     mimeType: UI_MIME_TYPE,
+//   },
+//   async (uri) => ({
+//     contents: [
+//       {
+//         uri: uri.href,
+//         mimeType: UI_MIME_TYPE,
+//         text: JOBS_HTML,
+//         // the screen loads nothing from anywhere and talks to DBHawk only through the client's tool calls
+//         _meta: { ui: { prefersBorder: true, csp: { connectDomains: [], resourceDomains: [] } } },
+//       },
+//     ],
+//   })
+// );
 
-/** The client fills in forms and has no job screen to ask instead. */
+/** The client fills in forms. With the job screen off, an MCP Apps client is asked in a form like any other. */
 function asksWithForms() {
   const caps = server.server.getClientCapabilities() || {};
   const elicitation = caps.elicitation;
   const forms = !!elicitation && typeof elicitation === "object" && (Object.keys(elicitation).length === 0 || !!elicitation.form);
-  return forms && !(caps.extensions && caps.extensions[UI_EXTENSION]);
+  // return forms && !(caps.extensions && caps.extensions[UI_EXTENSION]);
+  return forms;
 }
 
-/** Neither forms nor the job screen: the model does the asking, question by question. */
+/** No forms: the model does the asking, question by question. */
 function asksInChat() {
-  const caps = server.server.getClientCapabilities() || {};
-  if (caps.extensions && caps.extensions[UI_EXTENSION]) return false;
   return !asksWithForms();
 }
 
@@ -792,7 +792,7 @@ server.registerTool(
       limit: z.number().int().positive().optional().describe("Jobs per page (default 50, at most 200)"),
     },
     annotations: READ_ONLY,
-    _meta: JOBS_UI_META,
+    // _meta: JOBS_UI_META,
   },
   guard(async ({ datasource, name, offset, limit }) => {
     const params = new URLSearchParams();
@@ -812,7 +812,7 @@ server.registerTool(
     description: "One of your jobs in full: SQL, schema, schedule, output, delivery and notifications. Needs view_jobs.",
     inputSchema: { jobId: jobIdArg },
     annotations: READ_ONLY,
-    _meta: JOBS_UI_META,
+    // _meta: JOBS_UI_META,
   },
   guard(async ({ jobId }) => ok(await api("GET", `/jobs/${seg(jobId)}`)))
 );
@@ -829,7 +829,7 @@ server.registerTool(
       limit: z.number().int().positive().optional().describe("Runs to return (default 10, at most 50)"),
     },
     annotations: { ...READ_ONLY, idempotentHint: false },
-    _meta: JOBS_UI_META,
+    // _meta: JOBS_UI_META,
   },
   guard(async ({ jobId, limit }) => {
     const qs = limit !== undefined ? `?limit=${limit}` : "";
@@ -869,14 +869,18 @@ const CREATE_JOB_DESCRIPTION =
 const CREATE_JOB_WITH_FORMS_DESCRIPTION =
   "Schedule ONE SQL statement on a datasource; " + DELIVERY_TEXT + " Needs manage_jobs plus the MCP operations of the statement " +
   "itself (see get_permissions). Pass what you know - DBHawk asks the user in a form for anything left out " +
-  "(datasource, name, SQL, schedule, format, delivery) and for the confirmation the tier wants; call it with no arguments " +
-  "when the user just wants to create a job. Never set confirm=true on your own initiative.";
+  "(datasource, name, SQL, schedule, format, delivery); a call that brings the schedule, the format AND the " +
+  "delivery is put to the user as one question to confirm them instead. Call it with no arguments when the user " +
+  "just wants to create a job. Never set confirm=true on your own initiative.";
 
 const CREATE_JOB_WITH_DIALOG_DESCRIPTION =
   "Schedule ONE SQL statement on a datasource; " + DELIVERY_TEXT + " Needs manage_jobs plus the MCP operations of the statement " +
   "itself (see get_permissions). DBHawk fills the job in with the user, ONE question at a time: pass what you " +
-  "already know, and call it with no arguments at all when the user only says they want a job. An incomplete job is " +
-  "not an error - the answer is { questionRequired: true } with the question to put to the user, the 'options' they " +
+  "already know, and call it with no arguments at all when the user only says they want a job. The schedule, the " +
+  "format and the delivery are never yours to decide: where you have all three, DBHawk puts them to the user in " +
+  "ONE question (field \"setup\") and the user may ask for one to be changed - then call again WITHOUT that " +
+  "argument and DBHawk asks for it. A job still to be asked about is not an error - the answer is " +
+  "{ questionRequired: true } with the question to put to the user, the 'options' they " +
   "can pick from, the 'job' so far and a 'dialog' marker. Ask the user that question, wait for their answer, then " +
   "call create_job again with the arguments of 'job', their answer, and 'dialog' unchanged. Never answer a question " +
   "yourself and never guess a value. When the tier asks for confirmation the answer is { confirmationRequired: true } " +
@@ -896,7 +900,7 @@ const createJobTool = server.registerTool(
     description: CREATE_JOB_DESCRIPTION,
     inputSchema: { datasource: datasourceArg, ...jobFields(true) },
     annotations: WRITE,
-    _meta: JOBS_UI_META,
+    // _meta: JOBS_UI_META,
   },
   guard(async (args) => ok(await runJobTool("create_job", args)))
 );
@@ -913,7 +917,7 @@ const updateJobTool = server.registerTool(
     description: UPDATE_JOB_DESCRIPTION,
     inputSchema: { jobId: jobIdArg, ...jobFields(false) },
     annotations: WRITE,
-    _meta: JOBS_UI_META,
+    // _meta: JOBS_UI_META,
   },
   guard(async (args) => ok(await runJobTool("update_job", args)))
 );
@@ -964,7 +968,7 @@ for (const [name, action, title, annotations, confirmWhat, description] of jobAc
   const inputSchema = confirmWhat ? { jobId: jobIdArg, confirm: confirmArg(confirmWhat) } : { jobId: jobIdArg };
   server.registerTool(
     name,
-    { title, description, inputSchema, annotations, _meta: JOBS_UI_META },
+    { title, description, inputSchema, annotations },
     guard(async (args) => ok(await runJobTool(name, args)))
   );
 }

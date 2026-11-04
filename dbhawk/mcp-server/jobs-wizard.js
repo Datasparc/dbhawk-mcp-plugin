@@ -1,7 +1,9 @@
 /**
  * The job tools step by step, as in the DBHawk Job Scheduler, for an MCP client that fills in forms (elicitation).
  * The same flow as DBHawk's own MCP server (McpJobWizard): create_job asks the user for whatever the model left out
- * (datasource, name, SQL, then schedule and output), update_job with only a job id opens the job in a form, and a
+ * (datasource, name, SQL) and never takes the schedule and the output from the model unseen: a call that brings a
+ * valid cron, a format and a delivery is put to the user as one question ("Is that right?") and the whole form only
+ * when they clear it; anything missing opens that form straight away. update_job with only a job id opens it, and a
  * change the MCP tier asks to confirm is confirmed by the user in a form instead of being bounced back to the model.
  * The answers become ordinary tool arguments, so DBHawk still checks everything (tier, access control, read-only).
  * An explicit confirm=false skips the confirmation form (the job screen asks on its own).
@@ -25,6 +27,8 @@ const DELIVERIES = [TO_FILE_MANAGER, BY_EMAIL];
 
 /** The model asked for e-mail delivery: delivery=email, or recipients without a delivery. */
 const isEmail = (args) => (blank(args.delivery) ? !blank(args.emailTo) : /mail/i.test(String(args.delivery)));
+/** The model left nothing of the schedule and the output to the user: all three came with the call. */
+const proposesScheduleAndOutput = (args) => !blank(args.cronExp) && !blank(args.format) && !blank(args.delivery);
 const ATTEMPTS = 3;
 
 const CONFIRM = {
@@ -120,7 +124,8 @@ export function createWizard({ call, ask, defaultDatasource }) {
   }
 
   async function askNewJob(args) {
-    if (blank(args.datasource) || blank(args.name) || blank(args.statement)) {
+    const whatRuns = blank(args.datasource) || blank(args.name) || blank(args.statement);
+    if (whatRuns) {
       const list = await call("list_datasources", {});
       const datasources = (Array.isArray(list) ? list : []).map((d) => text(d && d.name)).filter(Boolean);
       if (!datasources.length) throw new Error("You have no datasources available over MCP, so no job can be created.");
@@ -144,20 +149,42 @@ export function createWizard({ call, ask, defaultDatasource }) {
       const missing = ["datasource", "name", "statement"].find((k) => blank(args[k]));
       if (missing) throw new Error(`The form came back without ${missing}.`);
     }
-    if (blank(args.cronExp)) return askScheduleAndOutput(args);
-    return true;
+    // the model brought a schedule, a format and a delivery: one question, not the whole form
+    if (proposesScheduleAndOutput(args) && !(await cronProblem(text(args.cronExp)))) {
+      const answer = await ask(
+        `New scheduled job "${args.name}"\n${await describeSetup(args)}\nIs that right? Clear the box to change it.`,
+        form([["right", flag("Yes, create it like this", undefined, true), true]])
+      );
+      if (!answer) return false;
+      if (bool(answer.right) !== false) return true;
+    }
+    return askScheduleAndOutput(args, whatRuns);
   }
 
-  async function askScheduleAndOutput(args) {
+  /** The schedule and the output of a job, for the one question that puts them to the user. */
+  async function describeSetup(args) {
+    const cron = text(args.cronExp);
+    const explained = (await call("explain_cron", { cronExp: cron })) || {};
+    const description = text(explained.description);
+    const emailTo = text(args.emailTo);
+    return (
+      `Schedule: ${description === undefined ? cron : `${description} (${cron})`}\n` +
+      `Result: ${text(args.format)}\n` +
+      `Delivery: ${isEmail(args) ? `e-mail to ${emailTo === undefined ? "your own address" : emailTo}` : "your DBHawk File Manager"}`
+    );
+  }
+
+  async function askScheduleAndOutput(args, secondStep) {
     let problem = null;
-    let schedule = EVERY_DAY;
-    let time = "08:00";
     let cron = text(args.cronExp);
+    // a cron the model proposed opens the form on Custom with that expression; the user keeps or changes it
+    let schedule = cron === undefined ? EVERY_DAY : CUSTOM;
+    let time = "08:00";
     let answer = null;
     for (let attempt = 0; attempt < ATTEMPTS; attempt++) {
       answer = await ask(
         (problem ? `${problem}\n\n` : "") +
-          `New scheduled job "${args.name}" (step 2 of 2): when should it run, and where should the result file go?`,
+          `New scheduled job "${args.name}"${secondStep ? " (step 2 of 2)" : ""}: when should it run, and where should the result file go?`,
         form([
           ["schedule", choice("Schedule", "How often the job runs", SCHEDULES, schedule), true],
           ["time", textField("Time (HH:mm)", "Time of day of the run, server time; the minute for Every hour", time), false],
@@ -326,11 +353,13 @@ export function createWizard({ call, ask, defaultDatasource }) {
       let args = { ...(input || {}) };
       for (const key of Object.keys(args)) if (args[key] === undefined) delete args[key];
 
-      if (tool === "create_job" && ["datasource", "name", "statement", "cronExp"].some((k) => blank(args[k]))) {
+      if (tool === "create_job") {
         if (blank(args.datasource) && defaultDatasource && !blank(args.name) && !blank(args.statement)) {
           args.datasource = defaultDatasource;
         }
-        if (["datasource", "name", "statement", "cronExp"].some((k) => blank(args[k])) && !(await askNewJob(args))) {
+        // always: what runs is asked only where the model left it out, but the schedule and the output are the
+        // user's to choose - the model's values are the defaults of the form, not the job
+        if (!(await askNewJob(args))) {
           return cancelled(tool);
         }
       } else if (tool === "update_job" && onlyJobId(args)) {
